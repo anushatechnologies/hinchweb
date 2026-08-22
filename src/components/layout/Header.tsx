@@ -184,6 +184,7 @@ export const Header: React.FC = () => {
             <button
               onClick={() => setIsNotifOpen(!isNotifOpen)}
               className="p-2 rounded-xl border border-industrial-200 hover:bg-industrial-100 text-industrial-700 hover:text-industrial-900 relative transition-colors cursor-pointer"
+              aria-label="Notifications"
             >
               <Bell className="w-4 h-4" />
               {unreadNotifs.length > 0 && (
@@ -194,49 +195,67 @@ export const Header: React.FC = () => {
             </button>
 
             {isNotifOpen && (
-              <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-industrial-200 overflow-hidden z-50 animate-in fade-in zoom-in-95">
-                <div className="p-3.5 bg-industrial-900 text-white flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Bell className="w-4 h-4 text-brand-400" />
-                    <span className="font-bold text-xs">Procurement Updates</span>
-                  </div>
-                  {unreadNotifs.length > 0 && (
-                    <button
-                      onClick={handleMarkAllRead}
-                      className="text-[10px] text-brand-300 hover:text-white font-semibold cursor-pointer"
-                    >
-                      Mark all read
-                    </button>
-                  )}
-                </div>
+              <>
+                {/* Mobile Backdrop */}
+                <div
+                  className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-40 sm:hidden"
+                  onClick={() => setIsNotifOpen(false)}
+                />
 
-                <div className="max-h-72 overflow-y-auto divide-y divide-industrial-100">
-                  {notifications.length === 0 ? (
-                    <div className="p-6 text-center text-xs text-industrial-400">
-                      No notifications yet.
+                {/* Dropdown Container: Fixed & centered on mobile, right-aligned on desktop */}
+                <div className="fixed sm:absolute left-3 right-3 sm:left-auto sm:right-0 top-16 sm:top-full mt-2 sm:w-96 max-w-[calc(100vw-24px)] bg-white rounded-2xl shadow-2xl border border-industrial-200 overflow-hidden z-50 animate-in fade-in zoom-in-95">
+                  <div className="p-3.5 bg-industrial-900 text-white flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Bell className="w-4 h-4 text-brand-400" />
+                      <span className="font-bold text-xs sm:text-sm">Procurement Updates</span>
                     </div>
-                  ) : (
-                    notifications.map((notif) => (
-                      <div
-                        key={notif.id}
-                        className={`p-3 text-xs space-y-1 hover:bg-industrial-50 transition-colors ${
-                          !notif.isRead ? 'bg-brand-50/40' : ''
-                        }`}
+                    <div className="flex items-center gap-3">
+                      {unreadNotifs.length > 0 && (
+                        <button
+                          onClick={handleMarkAllRead}
+                          className="text-[10px] sm:text-xs text-brand-300 hover:text-white font-semibold cursor-pointer transition-colors"
+                        >
+                          Mark all read
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setIsNotifOpen(false)}
+                        className="sm:hidden text-industrial-400 hover:text-white text-xs px-1 py-0.5 rounded cursor-pointer"
+                        aria-label="Close notifications"
                       >
-                        <div className="flex items-center justify-between font-bold text-industrial-900">
-                          <span>{notif.title}</span>
-                          <span className="text-[10px] font-normal text-industrial-400">
-                            {notif.createdAt ? new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recent'}
-                          </span>
-                        </div>
-                        <p className="text-industrial-600 text-[11px] leading-relaxed">
-                          {notif.message}
-                        </p>
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="max-h-[65vh] sm:max-h-80 overflow-y-auto divide-y divide-industrial-100">
+                    {notifications.length === 0 ? (
+                      <div className="p-6 text-center text-xs text-industrial-400">
+                        No notifications yet.
                       </div>
-                    ))
-                  )}
+                    ) : (
+                      notifications.map((notif) => (
+                        <div
+                          key={notif.id}
+                          className={`p-3.5 text-xs space-y-1 hover:bg-industrial-50 transition-colors ${
+                            !notif.isRead ? 'bg-brand-50/50' : ''
+                          }`}
+                        >
+                          <div className="flex items-center justify-between font-bold text-industrial-900 gap-2">
+                            <span className="truncate">{notif.title}</span>
+                            <span className="text-[10px] font-normal text-industrial-400 shrink-0">
+                              {notif.createdAt ? new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recent'}
+                            </span>
+                          </div>
+                          <p className="text-industrial-600 text-[11px] leading-relaxed">
+                            {notif.message}
+                          </p>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
-              </div>
+              </>
             )}
           </div>
 
@@ -260,56 +279,74 @@ export const Header: React.FC = () => {
               </button>
 
               {isUserMenuOpen && (
-                <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-industrial-200 py-2 z-50 animate-in fade-in zoom-in-95 text-xs text-industrial-800">
-                  <div className="px-4 py-2 border-b border-industrial-100">
-                    <div className="font-bold text-industrial-950">{user.companyName}</div>
-                    <div className="text-[11px] text-industrial-500">GSTIN: {user.gstin}</div>
+                <>
+                  {/* Mobile Backdrop */}
+                  <div
+                    className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-40 sm:hidden"
+                    onClick={() => setIsUserMenuOpen(false)}
+                  />
+
+                  {/* Dropdown Container */}
+                  <div className="fixed sm:absolute left-3 right-3 sm:left-auto sm:right-0 top-16 sm:top-full mt-2 sm:w-64 max-w-[calc(100vw-24px)] bg-white rounded-2xl shadow-2xl border border-industrial-200 py-2 z-50 animate-in fade-in zoom-in-95 text-xs text-industrial-800">
+                    <div className="px-4 py-2 border-b border-industrial-100 flex items-center justify-between">
+                      <div>
+                        <div className="font-bold text-industrial-950">{user.companyName}</div>
+                        <div className="text-[11px] text-industrial-500">GSTIN: {user.gstin}</div>
+                      </div>
+                      <button
+                        onClick={() => setIsUserMenuOpen(false)}
+                        className="sm:hidden text-industrial-400 hover:text-industrial-700 text-xs px-1 py-0.5"
+                        aria-label="Close menu"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <Link
+                      to="/account"
+                      onClick={() => setIsUserMenuOpen(false)}
+                      className="flex items-center gap-2.5 px-4 py-2 hover:bg-industrial-50 font-medium"
+                    >
+                      <Building2 className="w-4 h-4 text-industrial-400" />
+                      Enterprise Account & Credit
+                    </Link>
+                    <Link
+                      to="/orders"
+                      onClick={() => setIsUserMenuOpen(false)}
+                      className="flex items-center gap-2.5 px-4 py-2 hover:bg-industrial-50 font-medium"
+                    >
+                      <Package className="w-4 h-4 text-industrial-400" />
+                      Purchase Orders & Tracking
+                    </Link>
+                    <Link
+                      to="/rfq"
+                      onClick={() => setIsUserMenuOpen(false)}
+                      className="flex items-center gap-2.5 px-4 py-2 hover:bg-industrial-50 font-medium"
+                    >
+                      <FileText className="w-4 h-4 text-industrial-400" />
+                      My RFQs & Quotations
+                    </Link>
+                    <Link
+                      to="/invoices"
+                      onClick={() => setIsUserMenuOpen(false)}
+                      className="flex items-center gap-2.5 px-4 py-2 hover:bg-industrial-50 font-medium"
+                    >
+                      <ShieldCheck className="w-4 h-4 text-industrial-400" />
+                      GST Tax Invoices
+                    </Link>
+
+                    <button
+                      onClick={() => {
+                        setIsUserMenuOpen(false);
+                        openAuthModal();
+                      }}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-brand-50 text-brand-600 font-bold border-t border-industrial-100 text-left cursor-pointer transition-colors"
+                    >
+                      <LogIn className="w-4 h-4 text-brand-600" />
+                      <span>Switch / OTP Login</span>
+                    </button>
                   </div>
-
-                  <Link
-                    to="/account"
-                    onClick={() => setIsUserMenuOpen(false)}
-                    className="flex items-center gap-2.5 px-4 py-2 hover:bg-industrial-50 font-medium"
-                  >
-                    <Building2 className="w-4 h-4 text-industrial-400" />
-                    Enterprise Account & Credit
-                  </Link>
-                  <Link
-                    to="/orders"
-                    onClick={() => setIsUserMenuOpen(false)}
-                    className="flex items-center gap-2.5 px-4 py-2 hover:bg-industrial-50 font-medium"
-                  >
-                    <Package className="w-4 h-4 text-industrial-400" />
-                    Purchase Orders & Tracking
-                  </Link>
-                  <Link
-                    to="/rfq"
-                    onClick={() => setIsUserMenuOpen(false)}
-                    className="flex items-center gap-2.5 px-4 py-2 hover:bg-industrial-50 font-medium"
-                  >
-                    <FileText className="w-4 h-4 text-industrial-400" />
-                    My RFQs & Quotations
-                  </Link>
-                  <Link
-                    to="/invoices"
-                    onClick={() => setIsUserMenuOpen(false)}
-                    className="flex items-center gap-2.5 px-4 py-2 hover:bg-industrial-50 font-medium"
-                  >
-                    <ShieldCheck className="w-4 h-4 text-industrial-400" />
-                    GST Tax Invoices
-                  </Link>
-
-                  <button
-                    onClick={() => {
-                      setIsUserMenuOpen(false);
-                      openAuthModal();
-                    }}
-                    className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-brand-50 text-brand-600 font-bold border-t border-industrial-100 text-left cursor-pointer transition-colors"
-                  >
-                    <LogIn className="w-4 h-4 text-brand-600" />
-                    <span>Switch / OTP Login</span>
-                  </button>
-                </div>
+                </>
               )}
             </div>
           ) : (
