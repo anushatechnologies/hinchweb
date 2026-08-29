@@ -8,4 +8,15 @@ export default defineConfig({
     tailwindcss(),
     react(),
   ],
+  server: {
+    port: 5175,
+    host: true,
+    proxy: {
+      '/api': {
+        target: 'https://api.hinchmart.com',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
+  },
 });

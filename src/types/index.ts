@@ -11,13 +11,18 @@ export type ProductUnit =
   | 'Set'
   | 'Litre'
   | 'Drum'
-  | 'Bundle';
+  | 'Bundle'
+  | 'CUBIC_METER'
+  | string;
 
 export interface BulkPriceTier {
+  tierId?: number;
   minQty: number;
   maxQty: number | null;
   pricePerUnit: number;
   discountPercent?: number;
+  price?: number;
+  discountPercentage?: number;
 }
 
 export interface ProductSpecification {
@@ -37,28 +42,45 @@ export interface Seller {
   phoneMasked?: string;
 }
 
+export interface Vendor {
+  vendorId: number;
+  companyName: string;
+  city: string;
+  isVerified: boolean;
+  rating: number;
+}
+
 export interface Product {
   id: string;
+  productId?: number;
   slug: string;
   title: string;
+  sku?: string;
   brand: string;
   category: string;
-  categoryId: string;
+  categoryId: string | number;
   subcategory: string;
-  subcategoryId: string;
+  subcategoryId: string | number;
   description: string;
   images: string[];
-  price: number; // Base unit price
+  imageUrl?: string;
+  price: number;
   mrp?: number;
   unit: ProductUnit;
-  moq: number; // Minimum order quantity
-  gstRate: number; // e.g. 18, 28, 12
+  moq: number;
+  stock: number;
+  stockQty?: number;
+  gstRate: number;
   hsnCode: string;
   bulkPricing: BulkPriceTier[];
-  stock: number;
+  bulkPricingTiers?: BulkPriceTier[];
   rating: number;
   ratingCount: number;
+  reviewCount?: number;
+  active?: boolean;
+  is24HourDelivery?: boolean;
   seller: Seller;
+  vendor?: Vendor;
   specifications: ProductSpecification[];
   isFeatured?: boolean;
   isBulkDeal?: boolean;
@@ -67,55 +89,214 @@ export interface Product {
   deliveryDays: number;
   deliveryCharge: number;
   freeDeliveryAbove?: number;
+  approvalStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | string;
+  rejectionReason?: string;
+  createdAt?: string;
+}
+
+export interface CreateProductInput {
+  categoryId: number;
+  subcategoryId: number;
+  title: string;
+  brand: string;
+  price: number;
+  mrp?: number;
+  unit: string;
+  moq: number;
+  stockQty: number;
+  description: string;
+  imageUrl: string;
+  images?: string[];
+  active?: boolean;
+  is24HourDelivery?: boolean;
+  gstRate: number;
+  hsnCode: string;
+  specifications?: Record<string, string> | ProductSpecification[];
+  bulkPricingTiers?: {
+    minQty: number;
+    maxQty: number;
+    price: number;
+    discountPercentage: number;
+  }[];
 }
 
 export interface Subcategory {
   id: string;
+  subcategoryId?: number;
+  categoryId?: number;
   name: string;
   slug: string;
-  itemCount: number;
+  imageUrl?: string;
+  active?: boolean;
+  sortOrder?: number;
+  productCount?: number;
+  itemCount?: number;
+  createdAt?: string;
+}
+
+export interface CreateSubcategoryInput {
+  categoryId: number;
+  name: string;
+  slug?: string;
+  imageUrl?: string;
+  sortOrder?: number;
+  active?: boolean;
 }
 
 export interface Category {
   id: string;
+  categoryId?: number;
   name: string;
   slug: string;
-  iconName: string;
-  image: string;
-  description: string;
-  subcategories: Subcategory[];
+  iconName?: string;
+  description?: string;
+  imageUrl?: string;
+  image?: string;
+  active?: boolean;
+  sortOrder?: number;
+  productCount?: number;
+  subcategories?: Subcategory[];
+  createdAt?: string;
+}
+
+export interface CreateCategoryInput {
+  name: string;
+  slug?: string;
+  iconName?: string;
+  description?: string;
+  imageUrl?: string;
+  sortOrder?: number;
+  active?: boolean;
 }
 
 export interface Brand {
   id: string;
   name: string;
-  logo: string;
-  category: string;
+  logo?: string;
+  category?: string;
   productCount: number;
 }
 
+export interface ProductFilters {
+  categoryId?: number | string;
+  subcategoryId?: number | string;
+  category?: string;
+  subcategory?: string;
+  brand?: string | string[];
+  minPrice?: number;
+  maxPrice?: number;
+  is24HourDelivery?: boolean;
+  search?: string;
+  sort?: string;
+  page?: number;
+  limit?: number;
+  active?: boolean;
+}
+
+export interface SearchSuggestions {
+  suggestions: string[];
+  matchingCategories: string[];
+  matchingBrands: string[];
+}
+
+export interface Banner {
+  bannerId?: number;
+  id?: string;
+  title: string;
+  subtitle?: string;
+  imageUrl: string;
+  targetUrl?: string;
+  active?: boolean;
+  sortOrder?: number;
+}
+
+export interface CreateBannerInput {
+  title: string;
+  subtitle?: string;
+  targetUrl?: string;
+  sortOrder?: number;
+  active?: boolean;
+}
+
+export interface ProcurementStats {
+  totalOrders: number;
+  activeRfqs: number;
+  wishlistItems: number;
+  savedAddresses: number;
+}
+
+export interface BusinessInfo {
+  companyName: string;
+  gstNumber: string;
+  panNumber: string;
+  businessType: string;
+  isGstVerified: boolean;
+  creditLimit: number;
+  availableCredit: number;
+}
+
 export interface User {
-  id: string;
+  id: string | number;
   name: string;
+  fullName?: string;
   email: string;
   phone: string;
+  role?: string;
+  tier?: string;
   companyName: string;
   gstin: string;
   pan: string;
-  businessType: 'Private Limited' | 'Partnership' | 'Proprietorship' | 'Contractor' | 'SME' | 'Individual';
+  businessType: string;
   industry: string;
   isGstVerified: boolean;
   isApprovedBuyer: boolean;
+  isProfileComplete?: boolean;
   creditLimit: number;
   creditAvailable: number;
   creditDays: number;
+  procurementStats?: ProcurementStats;
+  business?: BusinessInfo;
   billingAddress?: Address;
 }
 
+export interface UpdateUserProfileInput {
+  fullName?: string;
+  name?: string;
+  phone?: string;
+  email?: string;
+  companyName?: string;
+  gstNumber?: string;
+  panNumber?: string;
+  businessType?: string;
+  creditLimit?: number;
+}
+
+export interface CustomerMaster {
+  customerId: number;
+  companyName: string;
+  contactPerson: string;
+  email: string;
+  phone: string;
+  gstNumber: string;
+  panNumber: string;
+  businessType: string;
+  creditLimit: number;
+  status: string;
+  createdAt?: string;
+}
+
+export type Customer = CustomerMaster;
+export type CreateCustomerInput = Partial<CustomerMaster>;
+export type UpdateCustomerInput = Partial<CustomerMaster>;
+
 export interface Address {
   id: string;
+  addressId?: number;
+  siteName?: string;
+  recipientName?: string;
   contactName: string;
   mobile: string;
+  phone?: string;
   companyName: string;
   gstin?: string;
   addressLine1: string;
@@ -124,146 +305,312 @@ export interface Address {
   city: string;
   state: string;
   pincode: string;
-  addressType: 'Site / Project' | 'Warehouse / Factory' | 'Office / Commercial' | 'Other';
+  addressType: 'Site / Project' | 'Warehouse / Factory' | 'Office / Commercial' | 'Other' | string;
+  isDefault?: boolean;
   isDefaultDelivery: boolean;
   isDefaultBilling: boolean;
+  hasHeavyVehicleAccess?: boolean;
+  createdAt?: string;
+}
+
+export interface CreateSiteAddressInput {
+  siteName?: string;
+  recipientName?: string;
+  contactName?: string;
+  phone?: string;
+  mobile?: string;
+  companyName?: string;
+  gstin?: string;
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  state: string;
+  pincode: string;
+  landmark?: string;
+  addressType?: string;
+  isDefault?: boolean;
+  isDefaultDelivery?: boolean;
+  isDefaultBilling?: boolean;
+  hasHeavyVehicleAccess?: boolean;
+}
+
+export type CreateAddressInput = CreateSiteAddressInput;
+
+export type KYCDocumentType =
+  | 'GST_CERTIFICATE'
+  | 'COMPANY_PAN'
+  | 'PAN'
+  | 'INCORPORATION_CERTIFICATE'
+  | 'MSME_UDYAM'
+  | 'MSME'
+  | 'CHEQUE'
+  | 'TRADE_LICENSE'
+  | 'OTHER';
+
+export interface KYCDocument {
+  documentId: number;
+  customerId: number;
+  documentType: KYCDocumentType;
+  title: string;
+  documentNumber: string;
+  fileName: string;
+  fileUrl: string;
+  fileSize: string;
+  status: 'PENDING' | 'VERIFIED' | 'REJECTED';
+  rejectionReason?: string | null;
+  expiresOn?: string;
+  uploadedAt: string;
+  verifiedAt?: string | null;
+}
+
+export interface SubmitKYCInput {
+  documentType: KYCDocumentType;
+  title: string;
+  documentNumber: string;
+  fileName: string;
+  fileUrl: string;
+  fileSize: string;
+  expiresOn?: string;
 }
 
 export interface CartItem {
-  id: string;
-  product: Product;
+  id?: string;
+  cartItemId?: number;
+  productId: string | number;
+  title?: string;
+  productTitle?: string;
+  brand?: string;
+  category?: string;
+  imageUrl?: string;
+  product?: Product;
   quantity: number;
-  selectedUnitPrice: number;
-  unit: ProductUnit;
-  gstRate: number;
-  bulkSavings: number;
+  unit?: ProductUnit;
+  price?: number;
+  unitPrice?: number;
+  selectedUnitPrice?: number;
+  effectiveUnitPrice?: number;
   totalPrice: number;
+  gstRate: number;
+  hsnCode?: string;
+  moq?: number;
+  stock?: number;
+  is24HourDelivery?: boolean;
+  deliveryCharge?: number;
+  seller?: Seller;
+  bulkSavings?: number;
 }
 
 export interface Cart {
+  id?: string;
+  cartId?: number;
   items: CartItem[];
-  totalItems: number;
+  totalItems?: number;
   subtotal: number;
-  totalBulkDiscount: number;
-  taxableAmount: number;
-  cgst: number;
-  sgst: number;
-  igst: number;
-  totalGst: number;
-  estimatedFreight: number;
+  couponDiscount?: number;
+  totalBulkDiscount?: number;
+  discountTotal?: number;
+  taxableAmount?: number;
+  cgst?: number;
+  sgst?: number;
+  igst?: number;
+  gstTotal?: number;
+  taxTotal?: number;
+  totalGst?: number;
+  estimatedFreight?: number;
+  deliveryCharge?: number;
+  deliveryTotal?: number;
+  shippingTotal?: number;
   grandTotal: number;
+  appliedCoupon?: any;
+  estimatedDeliveryDays?: number;
+  weightEstimateKg?: number;
+}
+
+export interface AddToCartInput {
+  productId: number | string;
+  quantity: number;
+}
+
+export interface ApplyCouponResult {
+  success: boolean;
+  message: string;
+  discountAmount?: number;
+  coupon?: any;
+}
+
+export interface WishlistItem {
+  productId: number | string;
+  title: string;
+  slug?: string;
+  price: number;
+  mrp?: number;
+  imageUrl: string;
+  brand?: string;
+  category?: string;
+  unit?: string;
+  inStock?: boolean;
+  addedAt?: string;
 }
 
 export interface CheckoutPreview {
-  items: CartItem[];
+  items?: CartItem[];
   subtotal: number;
-  bulkDiscount: number;
-  taxableAmount: number;
-  cgst: number;
-  sgst: number;
-  igst: number;
-  totalGst: number;
-  freight: number;
+  discount?: number;
+  discountTotal?: number;
+  bulkDiscount?: number;
+  taxableAmount?: number;
+  cgst?: number;
+  sgst?: number;
+  igst?: number;
+  taxTotal?: number;
+  gstTotal?: number;
+  totalGst?: number;
+  freight?: number;
+  freightCharge?: number;
+  deliveryTotal?: number;
+  shippingTotal?: number;
+  craneUnloadingCharge?: number;
   grandTotal: number;
-  deliveryPincode: string;
-  isInterState: boolean;
+  deliveryPincode?: string;
+  isInterState?: boolean;
 }
 
+export interface CheckoutPreviewInput {
+  addressId: number | string;
+  deliverySlot?: string;
+  requiresCraneUnloading?: boolean;
+}
+
+export type PreviewCheckoutInput = CheckoutPreviewInput;
+
 export type PaymentMethod =
+  | 'RAZORPAY'
+  | 'UPI'
+  | 'CARD'
+  | 'NETBANKING'
+  | 'BANK_TRANSFER'
+  | 'PAY_LATER'
   | 'upi'
   | 'card'
   | 'netbanking'
   | 'bank_transfer'
-  | 'pay_later';
+  | 'pay_later'
+  | string;
 
-export type PaymentState = 'idle' | 'processing' | 'success' | 'failed' | 'pending';
-
-export type OrderStatus =
-  | 'Order Placed'
-  | 'Payment Confirmed'
-  | 'Seller Confirmed'
-  | 'Packed'
-  | 'In Transit'
-  | 'Out for Delivery'
-  | 'Delivered'
-  | 'Cancelled';
-
-export interface TrackingMilestone {
-  title: string;
-  description: string;
-  timestamp: string;
-  completed: boolean;
-  current: boolean;
-  location: string;
-}
-
-export interface TransportDetails {
-  partnerName: string;
-  trackingNumber: string;
-  vehicleNumber: string;
-  consignmentNumber: string;
-  dispatchDate: string;
-  estimatedDelivery: string;
-  status: string;
+export interface PlaceOrderInput {
+  addressId: number | string;
+  paymentMethod: string;
+  deliverySlot?: string;
+  deliveryInstructions?: string;
+  poNumber?: string;
+  requiresCraneUnloading?: boolean;
 }
 
 export interface OrderItem {
-  productId: string;
-  productTitle: string;
-  productImage: string;
-  brand: string;
+  id?: string;
+  orderItemId?: number;
+  productId: string | number;
+  title?: string;
+  productName?: string;
+  productTitle?: string;
+  productImage?: string;
+  imageUrl?: string;
+  brand?: string;
   quantity: number;
   unit: ProductUnit;
+  price?: number;
   unitPrice: number;
   gstRate: number;
-  totalPrice: number;
-  hsnCode: string;
+  totalPrice?: number;
+  total?: number;
+  hsnCode?: string;
+}
+
+export interface OrderTrackingTimelineItem {
+  status: string;
+  title: string;
+  description: string;
+  timestamp: string;
+  isCompleted: boolean;
+}
+
+export interface OrderTracking {
+  orderId: number | string;
+  orderNumber: string;
+  currentStatus: string;
+  carrierName?: string;
+  vehicleNumber?: string;
+  driverPhone?: string;
+  currentLocation?: string;
+  estimatedDelivery?: string;
+  timeline?: OrderTrackingTimelineItem[];
 }
 
 export interface Order {
   id: string;
+  orderId?: number;
   orderNumber: string;
+  poNumber?: string;
+  customerId?: number;
   createdAt: string;
-  items: OrderItem[];
-  seller: Seller;
-  status: OrderStatus;
-  paymentStatus: 'Paid' | 'Pending' | 'Credit Authorized' | 'Failed';
+  status: string;
+  orderStatus?: string;
+  paymentStatus: string;
   paymentMethod: PaymentMethod;
+  items: OrderItem[];
+  itemCount?: number;
+  firstItemTitle?: string;
+  firstItemImage?: string;
+  seller?: Seller;
   deliveryAddress: Address;
   billingAddress: Address;
+  deliverySlot?: string;
+  deliveryInstructions?: string;
   subtotal: number;
-  bulkDiscount: number;
-  taxableAmount: number;
-  cgst: number;
-  sgst: number;
-  igst: number;
+  bulkDiscount?: number;
+  taxableAmount?: number;
+  cgst?: number;
+  sgst?: number;
+  igst?: number;
+  taxTotal?: number;
+  gstTotal?: number;
   deliveryCharge: number;
+  shippingTotal?: number;
+  discountTotal?: number;
+  totalAmount?: number;
   grandTotal: number;
-  tracking: TransportDetails & { milestones: TrackingMilestone[] };
+  trackingTimeline?: OrderTrackingTimelineItem[];
+  tracking?: any;
   invoiceId?: string;
-  expectedDelivery: string;
+  invoiceNumber?: string;
+  invoiceUrl?: string;
+  ewayBillNumber?: string;
+  mtcDocumentUrl?: string;
+  weightTons?: number;
+  craneUnloadingRequired?: boolean;
+  expectedDelivery?: string;
+  estimatedDelivery?: string;
 }
-
-export type RFQStatus =
-  | 'Draft'
-  | 'Submitted'
-  | 'Open'
-  | 'Quotes Received'
-  | 'Quote Accepted'
-  | 'Converted to Order'
-  | 'Closed'
-  | 'Cancelled';
 
 export interface RFQ {
   id: string;
+  rfqId?: number;
   rfqNumber: string;
+  title?: string;
   productName: string;
+  productMaterial?: string;
   category: string;
-  brandPreference: string;
+  brandPreference?: string;
   quantity: number;
   unit: ProductUnit;
+  technicalGrade?: string;
+  mtcRequired?: boolean;
   deliveryLocation: string;
-  deliveryPincode: string;
+  deliveryPincode?: string;
+  siteAccess?: string;
+  craneRequired?: boolean;
+  targetBudget?: number;
+  paymentTerms?: string;
   requiredByDate: string;
   targetPrice?: number;
   specifications: string;
@@ -271,9 +618,36 @@ export interface RFQ {
   attachmentUrl?: string;
   attachmentName?: string;
   createdAt: string;
-  status: RFQStatus;
+  status: string;
   quotesCount: number;
+  quotes?: Quote[];
+  expiresAt?: string;
 }
+
+export interface CreateBulkRFQInput {
+  title?: string;
+  productName?: string;
+  category: string;
+  productMaterial?: string;
+  brandPreference?: string;
+  quantity: number;
+  unit: string;
+  technicalGrade?: string;
+  mtcRequired?: boolean;
+  deliveryLocation: string;
+  requiredByDate: string;
+  siteAccess?: string;
+  craneRequired?: boolean;
+  targetBudget?: number;
+  targetPrice?: number;
+  paymentTerms?: string;
+  specifications?: string;
+  attachmentName?: string;
+  attachmentUrl?: string;
+  notes?: string;
+}
+
+export type CreateRFQInput = CreateBulkRFQInput;
 
 export interface Quote {
   id: string;
@@ -289,26 +663,34 @@ export interface Quote {
   landedCost: number;
   deliveryDays: number;
   validUntil: string;
-  paymentTerms:
-    | '100% Advance'
-    | '50% Advance, 50% on Delivery'
-    | '100% Before Dispatch'
-    | '30 Days Credit'
-    | '45 Days Credit';
-  notes?: string;
+  paymentTerms: string;
   isAccepted: boolean;
   createdAt: string;
+  notes: string;
+}
+
+export interface TaxInvoiceItem {
+  description: string;
+  hsnCode: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  taxableValue: number;
+  gstRate: number;
+  cgstAmount: number;
+  sgstAmount: number;
+  igstAmount: number;
+  totalAmount: number;
 }
 
 export interface TaxInvoice {
   id: string;
   invoiceNumber: string;
-  invoiceDate: string;
-  orderNumber: string;
   orderId: string;
-  buyer: {
+  orderNumber: string;
+  invoiceDate: string;
+  seller: {
     companyName: string;
-    contactPerson: string;
     gstin: string;
     pan: string;
     address: string;
@@ -316,8 +698,9 @@ export interface TaxInvoice {
     state: string;
     pincode: string;
   };
-  seller: {
+  buyer: {
     companyName: string;
+    contactPerson?: string;
     gstin: string;
     pan: string;
     address: string;
@@ -331,19 +714,7 @@ export interface TaxInvoice {
     cin: string;
     address: string;
   };
-  items: {
-    description: string;
-    hsnCode: string;
-    quantity: number;
-    unit: ProductUnit;
-    unitPrice: number;
-    taxableValue: number;
-    gstRate: number;
-    cgstAmount: number;
-    sgstAmount: number;
-    igstAmount: number;
-    totalAmount: number;
-  }[];
+  items: TaxInvoiceItem[];
   taxableTotal: number;
   cgstTotal: number;
   sgstTotal: number;
@@ -360,48 +731,35 @@ export interface Notification {
   id: string;
   title: string;
   message: string;
-  category: 'order' | 'rfq' | 'quote' | 'payment' | 'delivery' | 'system';
+  category: string;
   createdAt: string;
   isRead: boolean;
-  link: string;
-}
-
-export interface Conversation {
-  id: string;
-  seller: Seller;
-  topic: 'Product Inquiry' | 'RFQ Discussion' | 'Order Discussion' | 'Delivery Issue' | 'Payment Issue';
-  subject: string;
-  referenceId?: string;
-  lastMessage: string;
-  lastMessageTime: string;
-  unreadCount: number;
+  link?: string;
 }
 
 export interface ChatMessage {
   id: string;
-  conversationId: string;
-  sender: 'buyer' | 'seller';
+  conversationId?: string;
+  senderId?: string;
+  sender?: string;
   senderName: string;
-  message: string;
+  senderRole?: 'BUYER' | 'SELLER' | 'SUPPORT' | string;
+  text?: string;
+  message?: string;
   timestamp: string;
-  status: 'sent' | 'delivered' | 'read';
+  attachmentUrl?: string;
+  status?: string;
 }
 
-export interface ProductFilters {
-  category?: string;
-  subcategory?: string;
-  brand?: string[];
-  minPrice?: number;
-  maxPrice?: number;
-  availability?: boolean;
-  sellerVerified?: boolean;
-  rating?: number;
-  gstRate?: number[];
-  moqMax?: number;
-  deliveryDaysMax?: number;
-  industry?: string;
-  search?: string;
-  sort?: 'popularity' | 'price_asc' | 'price_desc' | 'newest' | 'rating';
-  page?: number;
-  limit?: number;
+export interface Conversation {
+  id: string;
+  sellerId?: string;
+  sellerName?: string;
+  seller?: Seller;
+  topic?: string;
+  subject?: string;
+  unreadCount?: number;
+  lastMessage?: string;
+  lastMessageTime?: string;
+  messages?: ChatMessage[];
 }

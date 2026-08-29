@@ -4,7 +4,6 @@ import { useLocationStore } from '../../store/useLocationStore';
 import { useToastStore } from '../../store/useToastStore';
 import { rfqApi } from '../../api/rfqApi';
 import { categoryApi } from '../../api/categoryApi';
-import { CATEGORIES } from '../../api/mockData';
 import type { ProductUnit, Category } from '../../types';
 import {
   X,
@@ -30,6 +29,7 @@ const UNITS: ProductUnit[] = [
   'Pack',
   'Bundle',
   'Litre',
+  'CUBIC_METER',
 ];
 
 export const RFQModal: React.FC = () => {
@@ -39,7 +39,7 @@ export const RFQModal: React.FC = () => {
   const navigate = useNavigate();
 
   const [productName, setProductName] = useState('');
-  const [category, setCategory] = useState(CATEGORIES[0].name);
+  const [category, setCategory] = useState('Structural Steel & TMT');
   const [categories, setCategories] = useState<Category[]>([]);
   const [brandPreference, setBrandPreference] = useState('');
   const [quantity, setQuantity] = useState<number>(50);
@@ -54,10 +54,18 @@ export const RFQModal: React.FC = () => {
   const [isSuccess, setIsSuccess] = useState(false);
 
   useEffect(() => {
-    categoryApi.getCategories().then((cats) => {
-      if (cats && cats.length > 0) setCategories(cats);
-    }).catch(console.error);
-  }, []);
+    categoryApi
+      .getCategories()
+      .then((cats) => {
+        if (cats && cats.length > 0) {
+          setCategories(cats);
+          if (!prefilledProduct) {
+            setCategory(cats[0].name);
+          }
+        }
+      })
+      .catch(console.error);
+  }, [prefilledProduct]);
 
   useEffect(() => {
     if (prefilledProduct) {
@@ -72,7 +80,7 @@ export const RFQModal: React.FC = () => {
       );
     } else {
       setProductName('');
-      setCategory(categories[0]?.name || CATEGORIES[0].name);
+      if (categories.length > 0) setCategory(categories[0].name);
       setBrandPreference('Any Verified Primary Brand');
       setUnit('Ton');
       setQuantity(50);
@@ -101,25 +109,29 @@ export const RFQModal: React.FC = () => {
     setIsSubmitting(true);
     try {
       const created = await rfqApi.createRFQ({
+        title: productName.trim(),
         productName: productName.trim(),
+        productMaterial: productName.trim(),
         category,
         brandPreference: brandPreference.trim() || 'Any Verified Brand',
         quantity: Number(quantity),
         unit,
-        deliveryLocation: deliveryLocation.trim() || 'Site Depot',
-        deliveryPincode: deliveryPincode.trim() || '500081',
+        deliveryLocation: `${deliveryLocation.trim() || 'Site Depot'}, ${deliveryPincode.trim() || '500081'}`,
         requiredByDate,
-        targetPrice: targetPrice || undefined,
-        specifications: specifications.trim() || 'Standard industrial specifications required.',
+        targetBudget: targetPrice ? Number(targetPrice) : undefined,
+        targetPrice: targetPrice ? Number(targetPrice) : undefined,
+        specifications: specifications.trim() || 'Standard BIS industrial grade material with MTC.',
         attachmentName: attachmentName || undefined,
-        notes: 'Priority construction procurement request.',
+        mtcRequired: true,
+        paymentTerms: '30 Days Net Credit',
+        siteAccess: 'Heavy Vehicle Access Available',
       });
 
       setIsSuccess(true);
       setIsSubmitting(false);
       showToast(
         'success',
-        `RFQ #${created.rfqNumber} broadcasted to 12 verified manufacturers. 2 competitive quotes received!`,
+        `RFQ #${created.rfqNumber} broadcasted to verified manufacturers.`,
         'RFQ Broadcasted'
       );
     } catch (err) {
@@ -141,7 +153,7 @@ export const RFQModal: React.FC = () => {
         <div className="bg-gradient-to-r from-industrial-900 via-industrial-800 to-industrial-900 text-white p-6 relative">
           <button
             onClick={closeRFQModal}
-            className="absolute top-4 right-4 text-industrial-400 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors"
+            className="absolute top-4 right-4 text-industrial-400 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -178,22 +190,22 @@ export const RFQModal: React.FC = () => {
               </p>
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-50 text-brand-800 text-xs font-semibold border border-brand-200 mt-2">
                 <Sparkles className="w-3.5 h-3.5 text-brand-600" />
-                2 Instant Supplier Quotations Ready for Review
+                <span>Verified Mill Test Certificates (MTC) Guaranteed</span>
               </div>
             </div>
 
-            <div className="flex justify-center gap-3 pt-2">
-              <button
-                onClick={closeRFQModal}
-                className="px-5 py-2.5 rounded-xl border border-industrial-300 text-industrial-700 hover:bg-industrial-50 text-sm font-semibold transition-all"
-              >
-                Close
-              </button>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
               <button
                 onClick={handleGoToQuotes}
-                className="px-6 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-bold shadow-lg shadow-brand-600/25 flex items-center gap-2 transition-all"
+                className="px-6 py-3 bg-brand-600 hover:bg-brand-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-brand-600/25 transition-all cursor-pointer"
               >
-                Compare Quotes & Accept Order
+                View My RFQ Status & Quotes
+              </button>
+              <button
+                onClick={closeRFQModal}
+                className="px-6 py-3 bg-industrial-100 hover:bg-industrial-200 text-industrial-800 font-bold text-sm rounded-xl transition-all cursor-pointer"
+              >
+                Done
               </button>
             </div>
           </div>
@@ -224,7 +236,7 @@ export const RFQModal: React.FC = () => {
                   onChange={(e) => setCategory(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-industrial-50 border border-industrial-300 rounded-xl text-sm font-medium text-industrial-900 focus:ring-2 focus:ring-brand-500 focus:outline-none"
                 >
-                  {(categories.length > 0 ? categories : (CATEGORIES as any[])).map((c: any) => (
+                  {categories.map((c) => (
                     <option key={c.id} value={c.name}>
                       {c.name}
                     </option>
@@ -263,7 +275,7 @@ export const RFQModal: React.FC = () => {
                   <select
                     value={unit}
                     onChange={(e) => setUnit(e.target.value as ProductUnit)}
-                    className="w-28 px-3 py-2.5 bg-industrial-50 border border-industrial-300 rounded-xl text-sm font-semibold text-industrial-900 focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                    className="w-32 px-3 py-2.5 bg-industrial-50 border border-industrial-300 rounded-xl text-sm font-semibold text-industrial-900 focus:ring-2 focus:ring-brand-500 focus:outline-none"
                   >
                     {UNITS.map((u) => (
                       <option key={u} value={u}>
@@ -277,7 +289,7 @@ export const RFQModal: React.FC = () => {
               {/* Target Price */}
               <div className="space-y-1">
                 <label className="block text-xs font-semibold text-industrial-700">
-                  Target Price per {unit} (Optional ₹)
+                  Target Price per {unit} (Optional ?)
                 </label>
                 <input
                   type="number"
@@ -318,9 +330,9 @@ export const RFQModal: React.FC = () => {
               </div>
 
               {/* Required Date */}
-              <div className="md:col-span-2 space-y-1">
+              <div className="space-y-1">
                 <label className="block text-xs font-semibold text-industrial-700">
-                  Material Required By (Delivery Deadline) *
+                  Required By Date *
                 </label>
                 <div className="relative">
                   <input
@@ -330,82 +342,88 @@ export const RFQModal: React.FC = () => {
                     onChange={(e) => setRequiredByDate(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-industrial-50 border border-industrial-300 rounded-xl text-sm font-medium text-industrial-900 focus:ring-2 focus:ring-brand-500 focus:outline-none"
                   />
-                  <Calendar className="w-4 h-4 text-industrial-400 absolute right-3.5 top-3 pointer-events-none" />
+                  <Calendar className="w-4 h-4 text-industrial-400 absolute right-3 top-3 pointer-events-none" />
                 </div>
               </div>
 
-              {/* Specifications / BOQ */}
+              {/* Specifications / BOQ notes */}
               <div className="md:col-span-2 space-y-1">
                 <label className="block text-xs font-semibold text-industrial-700">
-                  Detailed Specifications / Quality Standards / BOQ Details
+                  Detailed Material Specifications & BOQ Notes
                 </label>
                 <textarea
                   rows={3}
-                  placeholder="Specify BIS standards, test certificates required (MTC), cutting schedule, payment terms, or batch size..."
+                  placeholder="Mention standard conformity (e.g. IS 1786:2008), grade requirements, test certificate needs, cutting tolerances..."
                   value={specifications}
                   onChange={(e) => setSpecifications(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-industrial-50 border border-industrial-300 rounded-xl text-sm font-medium text-industrial-900 placeholder:text-industrial-400 focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                  className="w-full px-3.5 py-2.5 bg-industrial-50 border border-industrial-300 rounded-xl text-sm font-medium text-industrial-900 placeholder:text-industrial-400 focus:ring-2 focus:ring-brand-500 focus:outline-none resize-none"
                 />
               </div>
 
               {/* BOQ / Drawing Attachment */}
               <div className="md:col-span-2 space-y-1">
                 <label className="block text-xs font-semibold text-industrial-700">
-                  Attach BOQ / Technical Drawing (PDF/Excel)
+                  Attach Project BOQ / Bar Bending Schedule (Optional)
                 </label>
-                <div className="border-2 border-dashed border-industrial-300 hover:border-brand-500 rounded-xl p-3 text-center bg-industrial-50/50 cursor-pointer transition-colors">
+                <div className="border-2 border-dashed border-industrial-300 rounded-xl p-4 text-center hover:border-brand-500 transition-colors bg-industrial-50/50 flex flex-col items-center justify-center gap-1.5 cursor-pointer">
+                  <Upload className="w-5 h-5 text-industrial-400" />
+                  <div className="text-xs font-semibold text-industrial-700">
+                    {attachmentName ? (
+                      <span className="text-brand-600 font-bold">{attachmentName}</span>
+                    ) : (
+                      'Click to upload BOQ spreadsheet or drawing (.pdf, .xlsx, .dwg)'
+                    )}
+                  </div>
+                  <span className="text-[10px] text-industrial-400">Max size: 25MB</span>
                   <input
                     type="file"
-                    id="rfq-upload"
                     className="hidden"
+                    id="boq-upload"
                     onChange={(e) => {
                       if (e.target.files && e.target.files[0]) {
                         setAttachmentName(e.target.files[0].name);
                       }
                     }}
                   />
-                  <label htmlFor="rfq-upload" className="cursor-pointer flex items-center justify-center gap-2 text-xs text-industrial-600">
-                    <Upload className="w-4 h-4 text-brand-600" />
-                    <span>
-                      {attachmentName ? (
-                        <strong className="text-emerald-700 font-semibold">{attachmentName}</strong>
-                      ) : (
-                        'Click to upload BOQ Excel or drawing (Max 25MB)'
-                      )}
-                    </span>
+                  <label
+                    htmlFor="boq-upload"
+                    className="mt-1 px-3 py-1 bg-white border border-industrial-300 rounded-lg text-xs font-semibold text-industrial-700 hover:bg-industrial-100 cursor-pointer"
+                  >
+                    Select File
                   </label>
                 </div>
               </div>
             </div>
 
-            {/* B2B Assurance Note */}
-            <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs">
-              <ShieldCheck className="w-4 h-4 shrink-0 text-emerald-600" />
-              <span>
-                <strong>HinchMart B2B Guarantee:</strong> 100% verified suppliers with valid GSTIN and Mill Test Certificates (MTC).
-              </span>
+            {/* Guaranteed Badges */}
+            <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center justify-between text-xs text-emerald-900">
+              <div className="flex items-center gap-2 font-medium">
+                <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                <span>100% Genuine MTC Test Certificate & GST Tax Invoices</span>
+              </div>
+              <span className="font-bold">Verified Manufacturers</span>
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex justify-end gap-3 pt-2">
+            {/* Actions */}
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-industrial-100">
               <button
                 type="button"
                 onClick={closeRFQModal}
-                className="px-5 py-2.5 rounded-xl border border-industrial-300 text-industrial-700 hover:bg-industrial-50 text-sm font-semibold transition-all"
+                className="px-5 py-2.5 text-xs font-bold text-industrial-600 hover:text-industrial-900 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-6 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white text-sm font-bold shadow-lg shadow-brand-600/25 flex items-center gap-2 transition-all"
+                className="px-6 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-brand-600/25 flex items-center gap-2 transition-all active:scale-98 disabled:opacity-50 cursor-pointer"
               >
                 {isSubmitting ? (
-                  <>Broadcasting RFQ...</>
+                  <span>Broadcasting RFQ...</span>
                 ) : (
                   <>
                     <Send className="w-4 h-4" />
-                    Broadcast RFQ Now
+                    <span>Broadcast RFQ Now</span>
                   </>
                 )}
               </button>

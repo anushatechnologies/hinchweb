@@ -94,9 +94,12 @@ export const CheckoutPage: React.FC = () => {
     setIsProcessing(true);
     try {
       const newOrder = await orderApi.placeOrder({
-        deliveryAddressId,
-        billingAddressId,
-        paymentMethod,
+        addressId: selectedDelivery?.addressId || deliveryAddressId || 1,
+        paymentMethod: (paymentMethod || 'RAZORPAY').toUpperCase(),
+        deliverySlot: '2026-08-31 Morning (08:00 - 12:00)',
+        deliveryInstructions: 'Deliver to project site with heavy vehicle trailer access.',
+        poNumber: 'PO-APEX-2026-001',
+        requiresCraneUnloading: true,
       });
 
       // Trigger Confetti Celebration
@@ -418,19 +421,23 @@ export const CheckoutPage: React.FC = () => {
 
             {/* Line Items Preview */}
             <div className="max-h-48 overflow-y-auto divide-y divide-industrial-100 space-y-2 pr-1">
-              {cart.items.map((item) => (
-                <div key={item.id} className="pt-2 first:pt-0 flex items-center justify-between text-xs">
-                  <div className="min-w-0 pr-2">
-                    <div className="font-bold text-industrial-900 truncate">{item.product.title}</div>
-                    <div className="text-[11px] text-industrial-500">
-                      {item.quantity} {item.unit}s @ {formatINR(item.selectedUnitPrice)}
+              {cart.items.map((item) => {
+                const title = item.title || item.product?.title || 'Industrial Material';
+                const unitPrice = item.selectedUnitPrice || item.unitPrice || item.price || 0;
+                return (
+                  <div key={item.id || item.productId} className="pt-2 first:pt-0 flex items-center justify-between text-xs">
+                    <div className="min-w-0 pr-2">
+                      <div className="font-bold text-industrial-900 truncate">{title}</div>
+                      <div className="text-[11px] text-industrial-500">
+                        {item.quantity} {item.unit || 'Piece'} @ {formatINR(unitPrice)}
+                      </div>
                     </div>
+                    <span className="font-mono font-bold text-industrial-950 shrink-0">
+                      {formatINR(item.totalPrice)}
+                    </span>
                   </div>
-                  <span className="font-mono font-bold text-industrial-950 shrink-0">
-                    {formatINR(item.totalPrice)}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Tax Breakdown */}

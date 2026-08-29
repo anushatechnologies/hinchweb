@@ -1,32 +1,53 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/useAuthStore';
 import { useToastStore } from '../store/useToastStore';
+import { kycApi } from '../api/kycApi';
 import { formatINR } from '../utils/formatters';
-import type { Address } from '../types';
+import type { KYCDocument, KYCDocumentType } from '../types';
 import {
   ShieldCheck,
   Plus,
   Trash2,
-  Sparkles,
+  FileCheck,
 } from 'lucide-react';
 
 export const AccountPage: React.FC = () => {
-  const { user, addresses, addAddress, deleteAddress } = useAuthStore();
+  const { user, addresses, addAddress, deleteAddress, updateUser } = useAuthStore();
   const { showToast } = useToastStore();
 
-  const [activeTab, setActiveTab] = useState<'profile' | 'credit' | 'addresses'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'credit' | 'addresses' | 'kyc'>('profile');
   const [isAddingSite, setIsAddingSite] = useState(false);
+  const [documents, setDocuments] = useState<KYCDocument[]>([]);
+  const [isUploadingDoc, setIsUploadingDoc] = useState(false);
+
+  // Profile Edit Form
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editFullName, setEditFullName] = useState(user.fullName || user.name);
+  const [editPhone, setEditPhone] = useState(user.phone);
+  const [editEmail, setEditEmail] = useState(user.email);
+  const [editCompanyName, setEditCompanyName] = useState(user.companyName);
 
   // Address form
-  const [newType, setNewType] = useState<Address['addressType']>('Site / Project');
-  const [newCompany, setNewCompany] = useState(user.companyName);
-  const [newGstin, setNewGstin] = useState(user.gstin);
-  const [newContact, setNewContact] = useState(user.name);
+  const [newSiteName, setNewSiteName] = useState('HITEC Tower B Project Site');
+  const [newRecipient, setNewRecipient] = useState(user.name);
   const [newPhone, setNewPhone] = useState(user.phone);
   const [newLine1, setNewLine1] = useState('');
+  const [newLine2, setNewLine2] = useState('');
   const [newCity, setNewCity] = useState('Hyderabad');
   const [newState, setNewState] = useState('Telangana');
   const [newPincode, setNewPincode] = useState('500081');
+  const [newLandmark, setNewLandmark] = useState('');
+  const [hasHeavyAccess, setHasHeavyAccess] = useState(true);
+
+  // KYC Upload Form
+  const [docType, setDocType] = useState<KYCDocumentType>('GST_CERTIFICATE');
+  const [docTitle, setDocTitle] = useState('GST Registration Certificate');
+  const [docNumber, setDocNumber] = useState(user.gstin || '36AAACT2727Q1ZW');
+  const [fileName, setFileName] = useState('');
+
+  useEffect(() => {
+    kycApi.getDocuments(user.id).then(setDocuments).catch(console.error);
+  }, [user.id]);
 
   const handleSaveAddress = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,17 +58,23 @@ export const AccountPage: React.FC = () => {
 
     try {
       await addAddress({
-        contactName: newContact,
+        siteName: newSiteName,
+        recipientName: newRecipient,
+        contactName: newRecipient,
         mobile: newPhone,
-        companyName: newCompany,
-        gstin: newGstin,
+        phone: newPhone,
+        companyName: user.companyName,
+        gstin: user.gstin,
         addressLine1: newLine1,
+        addressLine2: newLine2,
+        landmark: newLandmark,
         city: newCity,
         state: newState,
         pincode: newPincode,
-        addressType: newType,
+        addressType: 'Site / Project',
         isDefaultDelivery: false,
         isDefaultBilling: false,
+        hasHeavyVehicleAccess: hasHeavyAccess,
       });
 
       setIsAddingSite(false);
@@ -66,6 +93,50 @@ export const AccountPage: React.FC = () => {
     }
   };
 
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await updateUser({
+        name: editFullName,
+        fullName: editFullName,
+        phone: editPhone,
+        email: editEmail,
+        companyName: editCompanyName,
+      });
+      setIsEditingProfile(false);
+      showToast('success', 'Company profile updated successfully.', 'Profile Saved');
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSubmitKYC = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!fileName) {
+      showToast('error', 'Please select a document file to upload.', 'File Missing');
+      return;
+    }
+    setIsUploadingDoc(true);
+    try {
+      const newDoc = await kycApi.submitDocument(user.id, {
+        documentType: docType,
+        title: docTitle || `${docType.replace(/_/g, ' ')} Document`,
+        documentNumber: docNumber,
+        fileName,
+        fileUrl: `https://s3.amazonaws.com/hinchmart/documents/${fileName}`,
+        fileSize: '1.4 MB',
+        expiresOn: '2028-12-31',
+      });
+      setDocuments((prev) => [...prev, newDoc]);
+      setIsUploadingDoc(false);
+      setFileName('');
+      showToast('success', 'Document submitted for compliance review.', 'KYC Submitted');
+    } catch (err) {
+      console.error(err);
+      setIsUploadingDoc(false);
+    }
+  };
+
   const creditUtilized = user.creditLimit - user.creditAvailable;
   const utilizedPercent = Math.round((creditUtilized / user.creditLimit) * 100);
 
@@ -75,11 +146,11 @@ export const AccountPage: React.FC = () => {
       <div className="bg-gradient-to-r from-industrial-950 via-slate-900 to-industrial-950 rounded-3xl p-6 sm:p-8 text-white border border-industrial-800 shadow-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div className="flex items-start gap-4">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-white flex items-center justify-center font-black text-2xl shadow-xl shadow-brand-600/30 shrink-0">
-            {user.companyName.charAt(0)}
+            {(user.companyName || 'H').charAt(0)}
           </div>
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-xl sm:text-2xl font-black text-white">{user.companyName}</h1>
+              <h1 className="text-xl sm:text-2xl font-black text-white">{user.companyName || 'Apex Infra Projects Pvt Ltd'}</h1>
               {user.isGstVerified && (
                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold">
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
@@ -89,10 +160,10 @@ export const AccountPage: React.FC = () => {
             </div>
 
             <div className="text-xs text-industrial-400 flex flex-wrap items-center gap-3">
-              <span>Primary Representative: <strong className="text-white">{user.name}</strong></span>
-              <span>•</span>
+              <span>Primary Representative: <strong className="text-white">{user.fullName || user.name}</strong></span>
+              <span>�</span>
               <span className="font-mono">GSTIN: <strong className="text-brand-400">{user.gstin}</strong></span>
-              <span>•</span>
+              <span>�</span>
               <span>Type: {user.businessType}</span>
             </div>
           </div>
@@ -120,14 +191,15 @@ export const AccountPage: React.FC = () => {
       {/* 2. Navigation Tabs */}
       <div className="flex flex-wrap sm:flex-nowrap gap-2 sm:gap-3 border-b border-industrial-200 pb-2 text-xs font-bold overflow-x-auto">
         {[
-          { id: 'profile', label: 'Company KYC & Profile' },
-          { id: 'credit', label: 'Revolving Credit Line Dashboard' },
-          { id: 'addresses', label: `Project Sites & Address Book (${addresses.length})` },
+          { id: 'profile', label: 'Company Profile & Rep' },
+          { id: 'credit', label: 'Credit Line & Procurement Stats' },
+          { id: 'addresses', label: `Delivery Sites & Address Book (${addresses.length})` },
+          { id: 'kyc', label: `KYC Compliance Documents (${documents.length})` },
         ].map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
-            className={`px-3.5 sm:px-4 py-2 rounded-xl transition-colors shrink-0 ${
+            className={`px-3.5 sm:px-4 py-2 rounded-xl transition-colors shrink-0 cursor-pointer ${
               activeTab === tab.id
                 ? 'bg-industrial-900 text-white shadow-sm'
                 : 'text-industrial-600 hover:bg-industrial-100'
@@ -143,32 +215,87 @@ export const AccountPage: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
           {/* Business Details */}
           <div className="bg-white p-6 rounded-3xl border border-industrial-200 shadow-card space-y-4">
-            <h3 className="font-bold text-sm text-industrial-950 border-b border-industrial-100 pb-2">
-              Registered Business Entity
-            </h3>
-
-            <div className="space-y-3">
-              <div className="flex justify-between py-1.5 border-b border-industrial-50">
-                <span className="text-industrial-500">Legal Company Name:</span>
-                <span className="font-bold text-industrial-900">{user.companyName}</span>
-              </div>
-              <div className="flex justify-between py-1.5 border-b border-industrial-50">
-                <span className="text-industrial-500">GSTIN Identification:</span>
-                <span className="font-mono font-bold text-brand-700">{user.gstin}</span>
-              </div>
-              <div className="flex justify-between py-1.5 border-b border-industrial-50">
-                <span className="text-industrial-500">Permanent Account No (PAN):</span>
-                <span className="font-mono font-bold text-industrial-900">{user.pan}</span>
-              </div>
-              <div className="flex justify-between py-1.5 border-b border-industrial-50">
-                <span className="text-industrial-500">Business Constitution:</span>
-                <span className="font-semibold text-industrial-900">{user.businessType}</span>
-              </div>
-              <div className="flex justify-between py-1.5 border-b border-industrial-50">
-                <span className="text-industrial-500">Industry / Domain:</span>
-                <span className="font-semibold text-industrial-900">{user.industry}</span>
-              </div>
+            <div className="flex items-center justify-between border-b border-industrial-100 pb-2">
+              <h3 className="font-bold text-sm text-industrial-950">
+                Registered Business Entity
+              </h3>
+              <button
+                onClick={() => setIsEditingProfile(!isEditingProfile)}
+                className="text-xs font-bold text-brand-600 hover:text-brand-700 cursor-pointer"
+              >
+                {isEditingProfile ? 'Cancel' : 'Edit Profile'}
+              </button>
             </div>
+
+            {isEditingProfile ? (
+              <form onSubmit={handleUpdateProfile} className="space-y-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-industrial-600">Company Name</label>
+                  <input
+                    type="text"
+                    value={editCompanyName}
+                    onChange={(e) => setEditCompanyName(e.target.value)}
+                    className="w-full p-2 bg-industrial-50 border border-industrial-300 rounded-xl"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-industrial-600">Full Name</label>
+                  <input
+                    type="text"
+                    value={editFullName}
+                    onChange={(e) => setEditFullName(e.target.value)}
+                    className="w-full p-2 bg-industrial-50 border border-industrial-300 rounded-xl"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-industrial-600">Official Phone</label>
+                  <input
+                    type="text"
+                    value={editPhone}
+                    onChange={(e) => setEditPhone(e.target.value)}
+                    className="w-full p-2 bg-industrial-50 border border-industrial-300 rounded-xl"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-industrial-600">Official Email</label>
+                  <input
+                    type="email"
+                    value={editEmail}
+                    onChange={(e) => setEditEmail(e.target.value)}
+                    className="w-full p-2 bg-industrial-50 border border-industrial-300 rounded-xl"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="w-full py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold cursor-pointer"
+                >
+                  Save Profile Changes
+                </button>
+              </form>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex justify-between py-1.5 border-b border-industrial-50">
+                  <span className="text-industrial-500">Legal Company Name:</span>
+                  <span className="font-bold text-industrial-900">{user.companyName}</span>
+                </div>
+                <div className="flex justify-between py-1.5 border-b border-industrial-50">
+                  <span className="text-industrial-500">GSTIN Identification:</span>
+                  <span className="font-mono font-bold text-brand-700">{user.gstin}</span>
+                </div>
+                <div className="flex justify-between py-1.5 border-b border-industrial-50">
+                  <span className="text-industrial-500">Permanent Account No (PAN):</span>
+                  <span className="font-mono font-bold text-industrial-900">{user.pan}</span>
+                </div>
+                <div className="flex justify-between py-1.5 border-b border-industrial-50">
+                  <span className="text-industrial-500">Business Constitution:</span>
+                  <span className="font-semibold text-industrial-900">{user.businessType}</span>
+                </div>
+                <div className="flex justify-between py-1.5 border-b border-industrial-50">
+                  <span className="text-industrial-500">Industry / Domain:</span>
+                  <span className="font-semibold text-industrial-900">{user.industry}</span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Authorized Officer */}
@@ -180,7 +307,7 @@ export const AccountPage: React.FC = () => {
             <div className="space-y-3">
               <div className="flex justify-between py-1.5 border-b border-industrial-50">
                 <span className="text-industrial-500">Full Name:</span>
-                <span className="font-bold text-industrial-900">{user.name}</span>
+                <span className="font-bold text-industrial-900">{user.fullName || user.name}</span>
               </div>
               <div className="flex justify-between py-1.5 border-b border-industrial-50">
                 <span className="text-industrial-500">Official Email:</span>
@@ -193,7 +320,7 @@ export const AccountPage: React.FC = () => {
               <div className="flex justify-between py-1.5 border-b border-industrial-50">
                 <span className="text-industrial-500">Buyer Status:</span>
                 <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                  Approved Tier-1 Buyer
+                  Approved Tier-1 Gold Buyer
                 </span>
               </div>
             </div>
@@ -201,232 +328,325 @@ export const AccountPage: React.FC = () => {
         </div>
       )}
 
+      {/* Credit Dashboard Tab */}
       {activeTab === 'credit' && (
-        <div className="bg-white rounded-3xl border border-industrial-200 p-6 sm:p-8 shadow-card space-y-6">
-          <div className="flex items-center justify-between pb-4 border-b border-industrial-200">
-            <div>
-              <h3 className="text-lg font-bold text-industrial-950">
-                HinchMart Enterprise PayLater Line
-              </h3>
-              <p className="text-xs text-industrial-500">
-                Interest-free revolving procurement credit with automated monthly reconciliation.
-              </p>
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-white p-6 rounded-3xl border border-industrial-200 shadow-card space-y-2">
+              <div className="text-xs font-bold text-industrial-500 uppercase tracking-wider">Total Credit Limit</div>
+              <div className="text-2xl font-black text-industrial-950 font-mono">{formatINR(user.creditLimit)}</div>
+              <p className="text-[11px] text-industrial-400">Pre-approved revolving commercial credit line.</p>
             </div>
-            <div className="p-3 bg-emerald-50 text-emerald-800 rounded-2xl border border-emerald-200 text-xs font-bold flex items-center gap-2">
-              <ShieldCheck className="w-5 h-5 text-emerald-600" />
-              <span>Credit Active & Healthy</span>
+
+            <div className="bg-white p-6 rounded-3xl border border-industrial-200 shadow-card space-y-2">
+              <div className="text-xs font-bold text-emerald-600 uppercase tracking-wider">Available Balance</div>
+              <div className="text-2xl font-black text-emerald-600 font-mono">{formatINR(user.creditAvailable)}</div>
+              <p className="text-[11px] text-industrial-400">Instantly available at checkout with 0% interest for 45 days.</p>
+            </div>
+
+            <div className="bg-white p-6 rounded-3xl border border-industrial-200 shadow-card space-y-2">
+              <div className="text-xs font-bold text-amber-600 uppercase tracking-wider">Credit Utilized</div>
+              <div className="text-2xl font-black text-amber-600 font-mono">{formatINR(creditUtilized)}</div>
+              <p className="text-[11px] text-industrial-400">Allocated across active project delivery dispatches.</p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="p-4 rounded-2xl bg-industrial-50 border border-industrial-200">
-              <span className="text-xs text-industrial-500 block">Total Approved Limit</span>
-              <span className="text-2xl font-black text-industrial-950 font-mono">
-                {formatINR(user.creditLimit)}
-              </span>
+          {user.procurementStats && (
+            <div className="bg-white p-6 rounded-3xl border border-industrial-200 shadow-card space-y-4">
+              <h3 className="font-bold text-sm text-industrial-950">Enterprise Procurement Metrics</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+                <div className="p-4 bg-industrial-50 rounded-2xl">
+                  <div className="text-2xl font-black text-industrial-950 font-mono">{user.procurementStats.totalOrders}</div>
+                  <div className="text-xs text-industrial-500 font-semibold mt-1">Total Orders Placed</div>
+                </div>
+                <div className="p-4 bg-industrial-50 rounded-2xl">
+                  <div className="text-2xl font-black text-brand-600 font-mono">{user.procurementStats.activeRfqs}</div>
+                  <div className="text-xs text-industrial-500 font-semibold mt-1">Active RFQs</div>
+                </div>
+                <div className="p-4 bg-industrial-50 rounded-2xl">
+                  <div className="text-2xl font-black text-industrial-950 font-mono">{user.procurementStats.wishlistItems}</div>
+                  <div className="text-xs text-industrial-500 font-semibold mt-1">Bookmarked SKUs</div>
+                </div>
+                <div className="p-4 bg-industrial-50 rounded-2xl">
+                  <div className="text-2xl font-black text-emerald-600 font-mono">{addresses.length}</div>
+                  <div className="text-xs text-industrial-500 font-semibold mt-1">Active Project Sites</div>
+                </div>
+              </div>
             </div>
-            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200">
-              <span className="text-xs text-emerald-800 block">Available For Immediate Orders</span>
-              <span className="text-2xl font-black text-emerald-950 font-mono">
-                {formatINR(user.creditAvailable)}
-              </span>
-            </div>
-            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200">
-              <span className="text-xs text-amber-800 block">Utilized In Transit / Unbilled</span>
-              <span className="text-2xl font-black text-amber-950 font-mono">
-                {formatINR(creditUtilized)}
-              </span>
-            </div>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-industrial-900 text-white space-y-2 text-xs">
-            <div className="font-bold flex items-center gap-2 text-brand-400">
-              <Sparkles className="w-4 h-4" />
-              <span>Credit Benefits & Terms</span>
-            </div>
-            <p className="text-industrial-300 leading-relaxed text-[11px]">
-              Orders placed on PayLater automatically generate 45-day payment schedules. Consignments are dispatched with full Mill Test Certificates and E-Way Bills directly to your site.
-            </p>
-          </div>
+          )}
         </div>
       )}
 
+      {/* Delivery Sites Tab */}
       {activeTab === 'addresses' && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-bold text-industrial-950">Multi-Site Project Directory</h3>
-              <p className="text-xs text-industrial-500">
-                Manage construction site gates, factory stockyards, and corporate offices for freight routing.
-              </p>
-            </div>
+            <h3 className="font-bold text-base text-industrial-950">Project Site Delivery Yards</h3>
             <button
               onClick={() => setIsAddingSite(!isAddingSite)}
-              className="px-4 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold text-xs shadow-md shadow-brand-600/20 flex items-center gap-1.5 transition-all"
+              className="px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-brand-600/20 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>{isAddingSite ? 'Close Form' : 'Add New Project Site'}</span>
+              <span>Add New Delivery Site</span>
             </button>
           </div>
 
-          {/* Add Site Form */}
           {isAddingSite && (
-            <form onSubmit={handleSaveAddress} className="bg-white p-6 rounded-3xl border-2 border-brand-200 shadow-card space-y-4 text-xs">
-              <h4 className="font-bold text-sm text-industrial-950">New Construction Site / Warehouse</h4>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="space-y-1">
-                  <label className="font-semibold text-industrial-700">Address Category</label>
-                  <select
-                    value={newType}
-                    onChange={(e) => setNewType(e.target.value as any)}
-                    className="w-full p-2.5 bg-industrial-50 border border-industrial-300 rounded-xl"
-                  >
-                    <option value="Site / Project">Site / Project Construction</option>
-                    <option value="Warehouse / Factory">Warehouse / Factory Depot</option>
-                    <option value="Office / Commercial">Commercial Office</option>
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="font-semibold text-industrial-700">Project / Company Name</label>
+            <form onSubmit={handleSaveAddress} className="bg-white p-6 rounded-3xl border border-industrial-200 shadow-card space-y-4 text-xs">
+              <h4 className="font-bold text-sm text-industrial-900">Add Project Site Address</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-semibold text-industrial-700">Project / Site Name *</label>
                   <input
                     type="text"
                     required
-                    value={newCompany}
-                    onChange={(e) => setNewCompany(e.target.value)}
+                    value={newSiteName}
+                    onChange={(e) => setNewSiteName(e.target.value)}
                     className="w-full p-2.5 bg-industrial-50 border border-industrial-300 rounded-xl"
                   />
                 </div>
-                <div className="space-y-1">
-                  <label className="font-semibold text-industrial-700">GSTIN (Optional for Site)</label>
-                  <input
-                    type="text"
-                    value={newGstin}
-                    onChange={(e) => setNewGstin(e.target.value)}
-                    className="w-full p-2.5 bg-industrial-50 border border-industrial-300 rounded-xl font-mono"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="font-semibold text-industrial-700">Site Address Line (Gate No, Plot, Area)</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Sector 4 Industrial Corridor, Near NH-44 Toll Plaza"
-                  value={newLine1}
-                  onChange={(e) => setNewLine1(e.target.value)}
-                  className="w-full p-2.5 bg-industrial-50 border border-industrial-300 rounded-xl"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="space-y-1">
-                  <label className="font-semibold text-industrial-700">City</label>
+                <div>
+                  <label className="block font-semibold text-industrial-700">Recipient / Site Engineer Name *</label>
                   <input
                     type="text"
                     required
-                    value={newCity}
-                    onChange={(e) => setNewCity(e.target.value)}
-                    className="w-full p-2.5 bg-industrial-50 border border-industrial-300 rounded-xl text-xs"
+                    value={newRecipient}
+                    onChange={(e) => setNewRecipient(e.target.value)}
+                    className="w-full p-2.5 bg-industrial-50 border border-industrial-300 rounded-xl"
                   />
                 </div>
-                <div className="space-y-1">
-                  <label className="font-semibold text-industrial-700">State</label>
-                  <input
-                    type="text"
-                    required
-                    value={newState}
-                    onChange={(e) => setNewState(e.target.value)}
-                    className="w-full p-2.5 bg-industrial-50 border border-industrial-300 rounded-xl text-xs"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="font-semibold text-industrial-700">Pincode</label>
-                  <input
-                    type="text"
-                    maxLength={6}
-                    required
-                    value={newPincode}
-                    onChange={(e) => setNewPincode(e.target.value.replace(/\D/g, ''))}
-                    className="w-full p-2.5 bg-industrial-50 border border-industrial-300 rounded-xl font-mono font-bold text-xs"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="font-semibold text-industrial-700">Site Contact Person</label>
-                  <input
-                    type="text"
-                    required
-                    value={newContact}
-                    onChange={(e) => setNewContact(e.target.value)}
-                    className="w-full p-2.5 bg-industrial-50 border border-industrial-300 rounded-xl text-xs"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="font-semibold text-industrial-700">Site Mobile Number</label>
+                <div>
+                  <label className="block font-semibold text-industrial-700">Site Contact Phone *</label>
                   <input
                     type="text"
                     required
                     value={newPhone}
                     onChange={(e) => setNewPhone(e.target.value)}
-                    className="w-full p-2.5 bg-industrial-50 border border-industrial-300 rounded-xl text-xs"
+                    className="w-full p-2.5 bg-industrial-50 border border-industrial-300 rounded-xl"
                   />
                 </div>
+                <div>
+                  <label className="block font-semibold text-industrial-700">Landmark</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Near Gate 3 Steel Yard"
+                    value={newLandmark}
+                    onChange={(e) => setNewLandmark(e.target.value)}
+                    className="w-full p-2.5 bg-industrial-50 border border-industrial-300 rounded-xl"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-industrial-700">Address Line 1 *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Plot / Survey No, Corridor"
+                    value={newLine1}
+                    onChange={(e) => setNewLine1(e.target.value)}
+                    className="w-full p-2.5 bg-industrial-50 border border-industrial-300 rounded-xl"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-industrial-700">Address Line 2</label>
+                  <input
+                    type="text"
+                    placeholder="Phase / Sector"
+                    value={newLine2}
+                    onChange={(e) => setNewLine2(e.target.value)}
+                    className="w-full p-2.5 bg-industrial-50 border border-industrial-300 rounded-xl"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-industrial-700">City *</label>
+                  <input
+                    type="text"
+                    required
+                    value={newCity}
+                    onChange={(e) => setNewCity(e.target.value)}
+                    className="w-full p-2.5 bg-industrial-50 border border-industrial-300 rounded-xl"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-industrial-700">State *</label>
+                  <input
+                    type="text"
+                    required
+                    value={newState}
+                    onChange={(e) => setNewState(e.target.value)}
+                    className="w-full p-2.5 bg-industrial-50 border border-industrial-300 rounded-xl"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-industrial-700">Pincode *</label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={6}
+                    value={newPincode}
+                    onChange={(e) => setNewPincode(e.target.value)}
+                    className="w-full p-2.5 bg-industrial-50 border border-industrial-300 rounded-xl font-mono"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="flex items-center gap-2 font-semibold text-industrial-800 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={hasHeavyAccess}
+                      onChange={(e) => setHasHeavyAccess(e.target.checked)}
+                      className="rounded border-industrial-300 text-brand-600"
+                    />
+                    <span>Has heavy multi-axle trailer & crane vehicle access</span>
+                  </label>
+                </div>
               </div>
-
-              <div className="flex justify-end gap-2 pt-2">
+              <div className="flex justify-end gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setIsAddingSite(false)}
-                  className="px-4 py-2 rounded-xl border border-industrial-300 text-industrial-700 font-bold"
+                  className="px-4 py-2 text-industrial-600 font-bold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-brand-600 text-white font-bold shadow-md shadow-brand-600/20"
+                  className="px-6 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold cursor-pointer"
                 >
-                  Save Project Site
+                  Save Site Address
                 </button>
               </div>
             </form>
           )}
 
-          {/* List of Sites */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {addresses.map((addr) => (
-              <div
-                key={addr.id}
-                className="bg-white p-5 rounded-2xl border border-industrial-200 shadow-card space-y-3 flex flex-col justify-between"
-              >
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-wide bg-industrial-100 text-industrial-800 px-2 py-0.5 rounded">
-                      {addr.addressType}
-                    </span>
-                    {addresses.length > 1 && (
-                      <button
-                        onClick={() => handleDeleteAddress(addr.id)}
-                        className="text-industrial-400 hover:text-rose-600 p-1 transition-colors"
-                        title="Delete address"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
+              <div key={addr.id} className="bg-white p-5 rounded-2xl border border-industrial-200 shadow-card space-y-3 text-xs relative">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="font-bold text-sm text-industrial-950 flex items-center gap-2">
+                      <span>{addr.siteName || addr.addressLine1}</span>
+                      {addr.hasHeavyVehicleAccess && (
+                        <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.2 rounded-full font-semibold">
+                          Heavy Trailer Access
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-industrial-500 mt-0.5">
+                      Recipient: <strong>{addr.recipientName || addr.contactName}</strong> ({addr.phone || addr.mobile})
+                    </div>
                   </div>
-
-                  <div className="font-bold text-xs text-industrial-950">{addr.companyName}</div>
-                  <div className="text-xs text-industrial-600 leading-relaxed">
-                    {addr.addressLine1}, {addr.city}, {addr.state} - <strong className="font-mono text-industrial-900">{addr.pincode}</strong>
-                  </div>
+                  <button
+                    onClick={() => handleDeleteAddress(addr.id)}
+                    className="text-rose-500 hover:text-rose-700 p-1.5 rounded-lg hover:bg-rose-50 cursor-pointer"
+                    title="Remove address"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
 
-                <div className="pt-2 border-t border-industrial-100 text-[11px] text-industrial-500 space-y-0.5">
-                  <div>Site Contact: <strong className="text-industrial-800">{addr.contactName}</strong></div>
-                  <div>Mobile: {addr.mobile}</div>
+                <div className="text-industrial-700 leading-relaxed">
+                  {addr.addressLine1}
+                  {addr.addressLine2 ? `, ${addr.addressLine2}` : ''}
+                  {addr.landmark ? ` (Landmark: ${addr.landmark})` : ''}
+                  <br />
+                  <strong className="text-industrial-900">{addr.city}, {addr.state} � {addr.pincode}</strong>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* KYC Compliance Tab */}
+      {activeTab === 'kyc' && (
+        <div className="space-y-6">
+          <div className="bg-white p-6 rounded-3xl border border-industrial-200 shadow-card space-y-4">
+            <h3 className="font-bold text-sm text-industrial-950 flex items-center gap-2">
+              <FileCheck className="w-4 h-4 text-emerald-600" />
+              <span>Submit Compliance & Legal Documents</span>
+            </h3>
+
+            <form onSubmit={handleSubmitKYC} className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+              <div>
+                <label className="block font-semibold text-industrial-700 mb-1">Document Type *</label>
+                <select
+                  value={docType}
+                  onChange={(e) => {
+                    const val = e.target.value as KYCDocumentType;
+                    setDocType(val);
+                    setDocTitle(val.replace(/_/g, ' '));
+                  }}
+                  className="w-full p-2.5 bg-industrial-50 border border-industrial-300 rounded-xl"
+                >
+                  <option value="GST_CERTIFICATE">GST Registration Certificate</option>
+                  <option value="COMPANY_PAN">Company PAN Card</option>
+                  <option value="INCORPORATION_CERTIFICATE">Certificate of Incorporation</option>
+                  <option value="MSME_UDYAM">MSME Udyam Certificate</option>
+                  <option value="TRADE_LICENSE">Trade License</option>
+                  <option value="CHEQUE">Cancelled Cheque</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-industrial-700 mb-1">Document Number / ID *</label>
+                <input
+                  type="text"
+                  required
+                  value={docNumber}
+                  onChange={(e) => setDocNumber(e.target.value)}
+                  className="w-full p-2.5 bg-industrial-50 border border-industrial-300 rounded-xl font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-industrial-700 mb-1">Select PDF / Image File *</label>
+                <input
+                  type="file"
+                  id="kyc-file-upload"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      setFileName(e.target.files[0].name);
+                    }
+                  }}
+                />
+                <div className="flex gap-2">
+                  <label
+                    htmlFor="kyc-file-upload"
+                    className="flex-1 p-2.5 bg-industrial-50 border border-industrial-300 rounded-xl text-center font-semibold text-industrial-700 hover:bg-industrial-100 cursor-pointer truncate"
+                  >
+                    {fileName || 'Choose File'}
+                  </label>
+                  <button
+                    type="submit"
+                    disabled={isUploadingDoc}
+                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold cursor-pointer disabled:opacity-50"
+                  >
+                    {isUploadingDoc ? 'Uploading...' : 'Upload'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {documents.map((doc) => (
+              <div key={doc.documentId} className="bg-white p-5 rounded-2xl border border-industrial-200 shadow-card space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-industrial-950">{doc.title}</span>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      doc.status === 'VERIFIED'
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : 'bg-amber-50 text-amber-700 border border-amber-200'
+                    }`}
+                  >
+                    {doc.status}
+                  </span>
+                </div>
+                <div className="font-mono text-industrial-600">Doc No: {doc.documentNumber}</div>
+                <div className="text-industrial-400 text-[11px] flex justify-between">
+                  <span>File: {doc.fileName}</span>
+                  <span>Expires: {doc.expiresOn || '2028-12-31'}</span>
                 </div>
               </div>
             ))}

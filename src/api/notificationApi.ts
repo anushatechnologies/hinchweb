@@ -1,12 +1,10 @@
-import { apiClient, getCurrentUserId } from '../services/apiClient';
-import { mockDb } from './mockDb';
+import { apiClient } from '../services/apiClient';
 import type { Notification } from '../types';
 
 export const notificationApi = {
   async getNotifications(): Promise<Notification[]> {
-    const userId = getCurrentUserId();
     try {
-      const res = await apiClient.get('/notifications', { params: { userId } });
+      const res = await apiClient.get('/notifications');
       if (res.data?.success && Array.isArray(res.data?.data)) {
         return res.data.data.map((n: any) => ({
           id: String(n.id),
@@ -18,31 +16,36 @@ export const notificationApi = {
           link: n.link || '/orders',
         }));
       }
-    } catch {
-      // fallback
+      if (Array.isArray(res.data)) {
+        return res.data.map((n: any) => ({
+          id: String(n.id),
+          title: n.title,
+          message: n.message,
+          category: n.category || 'order',
+          createdAt: n.createdAt || new Date().toISOString(),
+          isRead: Boolean(n.isRead),
+          link: n.link || '/orders',
+        }));
+      }
+    } catch (err) {
+      console.warn('Backend GET /notifications error:', err);
     }
-    return mockDb.getNotifications();
+    return [];
   },
 
   async markAsRead(id: string): Promise<void> {
-    const userId = getCurrentUserId();
     try {
-      await apiClient.put(`/notifications/${id}/read?userId=${userId}`);
-      return;
-    } catch {
-      // fallback
+      await apiClient.put(`/notifications/${id}/read`);
+    } catch (err) {
+      console.warn(`Backend PUT /notifications/${id}/read error:`, err);
     }
-    return mockDb.markNotificationRead(id);
   },
 
   async markAllAsRead(): Promise<void> {
-    const userId = getCurrentUserId();
     try {
-      await apiClient.put(`/notifications/read-all?userId=${userId}`);
-      return;
-    } catch {
-      // fallback
+      await apiClient.put('/notifications/read-all');
+    } catch (err) {
+      console.warn('Backend PUT /notifications/read-all error:', err);
     }
-    return mockDb.markAllNotificationsRead();
   },
 };

@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { productApi } from '../api/productApi';
 import { categoryApi } from '../api/categoryApi';
-import { CATEGORIES, BRANDS } from '../api/mockData';
 import type { Product, Category, Brand } from '../types';
 import { ProductCard } from '../components/product/ProductCard';
 import { useRFQModalStore } from '../store/useRFQModalStore';
@@ -10,9 +9,9 @@ import {
   Filter,
   SlidersHorizontal,
   X,
-  Search,
   ShieldCheck,
   FileText,
+  Layers,
 } from 'lucide-react';
 
 export const CatalogPage: React.FC = () => {
@@ -23,38 +22,68 @@ export const CatalogPage: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
+  const [_isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
 
   // Filters State from URL or defaults
   const categoryParam = searchParams.get('category') || '';
+  const subcategoryParam = searchParams.get('subcategory') || '';
   const brandParam = searchParams.get('brand') || '';
   const searchParam = searchParams.get('search') || '';
   const dealsParam = searchParams.get('deals') === 'true';
+  const fastDeliveryParam = searchParams.get('fastDelivery') === 'true';
   const sortParam = (searchParams.get('sort') as any) || 'popularity';
 
   const [selectedCategories, setSelectedCategories] = useState<string[]>(
     categoryParam ? [categoryParam] : []
+  );
+  const [selectedSubcategories, setSelectedSubcategories] = useState<string[]>(
+    subcategoryParam ? [subcategoryParam] : []
   );
   const [selectedBrands, setSelectedBrands] = useState<string[]>(
     brandParam ? [brandParam] : []
   );
   const [selectedGstRates, setSelectedGstRates] = useState<number[]>([]);
   const [onlyVerifiedSeller, setOnlyVerifiedSeller] = useState(false);
+  const [only24HourDelivery, setOnly24HourDelivery] = useState(fastDeliveryParam);
   const [sortBy, setSortBy] = useState<string>(sortParam);
 
   useEffect(() => {
     if (categoryParam) {
       setSelectedCategories([categoryParam]);
     }
+    if (subcategoryParam) {
+      setSelectedSubcategories([subcategoryParam]);
+    }
     if (brandParam) {
       setSelectedBrands([brandParam]);
     }
-  }, [categoryParam, brandParam]);
+    if (fastDeliveryParam) {
+      setOnly24HourDelivery(true);
+    }
+  }, [categoryParam, subcategoryParam, brandParam, fastDeliveryParam]);
 
   useEffect(() => {
     setIsLoading(true);
+    categoryApi.getCategories().then(setCategories).catch(console.error);
+    categoryApi.getBrands().then(setBrands).catch(console.error);
+
+    const sortMap: Record<string, any> = {
+      price_asc: 'price_asc',
+      price_desc: 'price_desc',
+      rating: 'rating',
+      newest: 'newest',
+    };
+
     productApi
-      .getProducts()
+      .getProducts({
+        search: searchParam || undefined,
+        category: categoryParam || undefined,
+        subcategory: subcategoryParam || undefined,
+        brand: brandParam || undefined,
+        is24HourDelivery: fastDeliveryParam ? true : undefined,
+        sort: sortMap[sortParam] || undefined,
+        limit: 50,
+      })
       .then((res) => {
         setProducts(res.products);
         setIsLoading(false);
@@ -63,16 +92,40 @@ export const CatalogPage: React.FC = () => {
         console.error(err);
         setIsLoading(false);
       });
+  }, [searchParam, categoryParam, subcategoryParam, brandParam, fastDeliveryParam, sortParam]);
 
-    categoryApi.getCategories().then(setCategories).catch(console.error);
-    categoryApi.getBrands().then(setBrands).catch(console.error);
-  }, []);
+  // Derived available subcategories for selected categories
+  const availableSubcategories = useMemo(() => {
+    const subcats: { name: string; categoryName: string; count?: number }[] = [];
+    
+    // 1. From Category objects nested subcategories
+    categories.forEach((cat) => {
+      if (selectedCategories.length === 0 || selectedCategories.includes(cat.name)) {
+        if (cat.subcategories && cat.subcategories.length > 0) {
+          cat.subcategories.forEach((sub) => {
+            if (!subcats.some((s) => s.name.toLowerCase() === sub.name.toLowerCase())) {
+              subcats.push({ name: sub.name, categoryName: cat.name, count: sub.productCount });
+            }
+          });
+        }
+      }
+    });
+
+    // 2. From actual products if present
+    products.forEach((p) => {
+      if (p.subcategory && !subcats.some((s) => s.name.toLowerCase() === p.subcategory.toLowerCase())) {
+        subcats.push({ name: p.subcategory, categoryName: p.category });
+      }
+    });
+
+    return subcats;
+  }, [categories, selectedCategories, products]);
 
   // Filtered & Sorted Products
   const filteredProducts = useMemo(() => {
     let result = [...products];
 
-    // Search query filter
+    // Search query filter (client-side refinement)
     if (searchParam) {
       const q = searchParam.toLowerCase();
       result = result.filter(
@@ -80,24 +133,41 @@ export const CatalogPage: React.FC = () => {
           p.title.toLowerCase().includes(q) ||
           p.brand.toLowerCase().includes(q) ||
           p.category.toLowerCase().includes(q) ||
-          p.hsnCode.includes(q) ||
+          (p.subcategory && p.subcategory.toLowerCase().includes(q)) ||
+          (p.hsnCode && p.hsnCode.includes(q)) ||
           (p.tags && p.tags.some((t) => t.toLowerCase().includes(q)))
       );
     }
 
     // Category filter
     if (selectedCategories.length > 0) {
-      result = result.filter((p) => selectedCategories.includes(p.category));
+      result = result.filter((p) =>
+        selectedCategories.some((c) => p.category.toLowerCase().includes(c.toLowerCase()))
+      );
+    }
+
+    // Subcategory filter
+    if (selectedSubcategories.length > 0) {
+      result = result.filter((p) =>
+        selectedSubcategories.some((s) => p.subcategory?.toLowerCase().includes(s.toLowerCase()))
+      );
     }
 
     // Brand filter
     if (selectedBrands.length > 0) {
-      result = result.filter((p) => selectedBrands.includes(p.brand));
+      result = result.filter((p) =>
+        selectedBrands.some((b) => p.brand.toLowerCase().includes(b.toLowerCase()))
+      );
     }
 
     // Deals filter
     if (dealsParam) {
-      result = result.filter((p) => p.isBulkDeal);
+      result = result.filter((p) => p.isBulkDeal || p.bulkPricing.length > 0);
+    }
+
+    // 24 Hour Express Delivery
+    if (only24HourDelivery) {
+      result = result.filter((p) => p.is24HourDelivery || p.deliveryDays === 1);
     }
 
     // GST rate filter
@@ -126,8 +196,10 @@ export const CatalogPage: React.FC = () => {
     products,
     searchParam,
     selectedCategories,
+    selectedSubcategories,
     selectedBrands,
     dealsParam,
+    only24HourDelivery,
     selectedGstRates,
     onlyVerifiedSeller,
     sortBy,
@@ -139,9 +211,15 @@ export const CatalogPage: React.FC = () => {
     );
   };
 
-  const toggleBrand = (bName: string) => {
+  const toggleSubcategory = (subName: string) => {
+    setSelectedSubcategories((prev) =>
+      prev.includes(subName) ? prev.filter((s) => s !== subName) : [...prev, subName]
+    );
+  };
+
+  const toggleBrand = (brandName: string) => {
     setSelectedBrands((prev) =>
-      prev.includes(bName) ? prev.filter((b) => b !== bName) : [...prev, bName]
+      prev.includes(brandName) ? prev.filter((b) => b !== brandName) : [...prev, brandName]
     );
   };
 
@@ -153,17 +231,21 @@ export const CatalogPage: React.FC = () => {
 
   const handleClearAllFilters = () => {
     setSelectedCategories([]);
+    setSelectedSubcategories([]);
     setSelectedBrands([]);
     setSelectedGstRates([]);
     setOnlyVerifiedSeller(false);
+    setOnly24HourDelivery(false);
     setSearchParams({});
   };
 
   const hasActiveFilters =
     selectedCategories.length > 0 ||
+    selectedSubcategories.length > 0 ||
     selectedBrands.length > 0 ||
     selectedGstRates.length > 0 ||
     onlyVerifiedSeller ||
+    only24HourDelivery ||
     dealsParam ||
     Boolean(searchParam);
 
@@ -175,7 +257,24 @@ export const CatalogPage: React.FC = () => {
           <div className="flex items-center gap-2 text-xs text-industrial-500 mb-1">
             <Link to="/" className="hover:text-industrial-900">Home</Link>
             <span>/</span>
-            <span className="font-semibold text-industrial-800">B2B Material Catalog</span>
+            <Link to="/catalog" className="hover:text-industrial-900">Catalog</Link>
+            {selectedCategories.length === 1 && (
+              <>
+                <span>/</span>
+                <Link
+                  to={`/category/${encodeURIComponent(selectedCategories[0].toLowerCase().replace(/\s+/g, '-'))}`}
+                  className="font-semibold text-industrial-700 hover:text-brand-600 transition-colors"
+                >
+                  {selectedCategories[0]}
+                </Link>
+              </>
+            )}
+            {selectedSubcategories.length === 1 && (
+              <>
+                <span>/</span>
+                <span className="font-bold text-industrial-950">{selectedSubcategories[0]}</span>
+              </>
+            )}
             {searchParam && (
               <>
                 <span>/</span>
@@ -222,7 +321,51 @@ export const CatalogPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. Active Filter Chips */}
+      {/* 2. SUBCATEGORIES BROWSER PILLS (Watch & Filter Subcategories) */}
+      {availableSubcategories.length > 0 && (
+        <div className="bg-white p-4 rounded-2xl border border-industrial-200 shadow-subtle space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs font-bold text-industrial-800">
+              <Layers className="w-4 h-4 text-brand-600" />
+              <span>Browse Subcategories {selectedCategories.length === 1 ? `in ${selectedCategories[0]}` : ''}</span>
+            </div>
+            {selectedSubcategories.length > 0 && (
+              <button
+                onClick={() => setSelectedSubcategories([])}
+                className="text-[11px] text-rose-600 font-semibold hover:underline"
+              >
+                Clear Subcategory Filter
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {availableSubcategories.map((sub, idx) => {
+              const isSelected = selectedSubcategories.includes(sub.name);
+              return (
+                <button
+                  key={idx}
+                  onClick={() => toggleSubcategory(sub.name)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    isSelected
+                      ? 'bg-brand-600 text-white shadow-sm ring-1 ring-brand-600'
+                      : 'bg-industrial-50 hover:bg-industrial-100 text-industrial-800 border border-industrial-200'
+                  }`}
+                >
+                  <span>{sub.name}</span>
+                  {sub.count !== undefined && sub.count > 0 && (
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isSelected ? 'bg-white/20 text-white' : 'bg-industrial-200 text-industrial-700'}`}>
+                      {sub.count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 3. Active Filter Chips */}
       {hasActiveFilters && (
         <div className="flex flex-wrap items-center gap-2 pt-1">
           <span className="text-xs font-semibold text-industrial-500">Active Filters:</span>
@@ -250,6 +393,17 @@ export const CatalogPage: React.FC = () => {
               </button>
             </span>
           ))}
+          {selectedSubcategories.map((s) => (
+            <span
+              key={s}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-brand-50 text-brand-800 border border-brand-300 text-xs font-bold"
+            >
+              Subcategory: {s}
+              <button onClick={() => toggleSubcategory(s)}>
+                <X className="w-3 h-3 hover:text-rose-600" />
+              </button>
+            </span>
+          ))}
           {selectedBrands.map((b) => (
             <span
               key={b}
@@ -261,6 +415,14 @@ export const CatalogPage: React.FC = () => {
               </button>
             </span>
           ))}
+          {only24HourDelivery && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 text-xs font-semibold">
+              ? 24h Express Delivery
+              <button onClick={() => setOnly24HourDelivery(false)}>
+                <X className="w-3 h-3 hover:text-rose-600" />
+              </button>
+            </span>
+          )}
           {selectedGstRates.map((r) => (
             <span
               key={r}
@@ -283,193 +445,224 @@ export const CatalogPage: React.FC = () => {
 
           <button
             onClick={handleClearAllFilters}
-            className="text-xs font-bold text-rose-600 hover:text-rose-700 underline ml-2"
+            className="text-xs font-semibold text-rose-600 hover:text-rose-700 underline ml-2 cursor-pointer"
           >
             Clear All
           </button>
         </div>
       )}
 
-      {/* 3. Main Grid & Faceted Sidebar */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
-        {/* Sidebar Filters Desktop */}
-        <aside className="hidden md:block md:col-span-3 bg-white p-5 rounded-2xl border border-industrial-200 shadow-subtle space-y-6 sticky top-24">
-          <div className="flex items-center justify-between pb-3 border-b border-industrial-200">
-            <div className="flex items-center gap-2 font-bold text-sm text-industrial-900">
-              <SlidersHorizontal className="w-4 h-4 text-brand-600" />
-              <span>Procurement Filters</span>
+      {/* 4. Main Catalog Content: Sidebar + Products Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* Left Filter Sidebar (3 cols) */}
+        <aside className="hidden lg:block lg:col-span-3 space-y-6 sticky top-24">
+          <div className="bg-white rounded-3xl border border-industrial-200 p-6 shadow-card space-y-6">
+            <div className="flex items-center justify-between pb-3 border-b border-industrial-100">
+              <div className="flex items-center gap-2 font-black text-sm text-industrial-950">
+                <SlidersHorizontal className="w-4 h-4 text-brand-600" />
+                <span>Filters</span>
+              </div>
+              {hasActiveFilters && (
+                <button
+                  onClick={handleClearAllFilters}
+                  className="text-xs text-rose-600 hover:underline font-semibold cursor-pointer"
+                >
+                  Reset
+                </button>
+              )}
             </div>
-            {hasActiveFilters && (
-              <button
-                onClick={handleClearAllFilters}
-                className="text-[11px] text-brand-600 hover:text-brand-700 font-semibold"
-              >
-                Reset
-              </button>
-            )}
-          </div>
 
-          {/* Category Filter */}
-          <div className="space-y-2">
-            <h4 className="font-bold text-xs text-industrial-800 uppercase tracking-wider">
-              Category
-            </h4>
-            <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
-              {(categories.length > 0 ? categories : (CATEGORIES as any[])).map((cat: any) => {
-                const isSelected = selectedCategories.includes(cat.name);
-                return (
+            {/* Fast 24h Delivery Filter */}
+            <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200">
+              <label className="flex items-center justify-between cursor-pointer">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">?</span>
+                  <span className="text-xs font-bold text-amber-950">24-Hour Dispatch</span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={only24HourDelivery}
+                  onChange={(e) => setOnly24HourDelivery(e.target.checked)}
+                  className="w-4 h-4 text-amber-600 rounded focus:ring-amber-500"
+                />
+              </label>
+            </div>
+
+            {/* Categories & Nested Subcategories Filter */}
+            <div className="space-y-3">
+              <h4 className="font-bold text-xs uppercase tracking-wider text-industrial-500">
+                Categories
+              </h4>
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                {categories.map((cat) => (
                   <label
                     key={cat.id}
-                    className="flex items-center gap-2 text-xs text-industrial-700 hover:text-industrial-900 cursor-pointer select-none"
+                    className="flex items-center justify-between text-xs text-industrial-700 hover:text-industrial-950 cursor-pointer"
                   >
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => toggleCategory(cat.name)}
-                      className="rounded border-industrial-300 text-brand-600 focus:ring-brand-500 w-4 h-4"
-                    />
-                    <span className={isSelected ? 'font-bold text-industrial-950' : ''}>
-                      {cat.name}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedCategories.includes(cat.name)}
+                        onChange={() => toggleCategory(cat.name)}
+                        className="w-3.5 h-3.5 text-brand-600 rounded focus:ring-brand-500"
+                      />
+                      <span>{cat.name}</span>
+                    </div>
+                    {cat.productCount !== undefined && cat.productCount > 0 && (
+                      <span className="text-[10px] text-industrial-400 font-mono">
+                        {cat.productCount}
+                      </span>
+                    )}
                   </label>
-                );
-              })}
+                ))}
+              </div>
             </div>
-          </div>
 
-          {/* Brand Filter */}
-          <div className="space-y-2 pt-3 border-t border-industrial-100">
-            <h4 className="font-bold text-xs text-industrial-800 uppercase tracking-wider">
-              Primary Brand
-            </h4>
-            <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
-              {(brands.length > 0 ? brands : (BRANDS as any[])).map((brand: any) => {
-                const isSelected = selectedBrands.includes(brand.name);
-                return (
-                  <label
-                    key={brand.id}
-                    className="flex items-center gap-2 text-xs text-industrial-700 hover:text-industrial-900 cursor-pointer select-none"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => toggleBrand(brand.name)}
-                      className="rounded border-industrial-300 text-brand-600 focus:ring-brand-500 w-4 h-4"
-                    />
-                    <span className={isSelected ? 'font-bold text-industrial-950' : ''}>
-                      {brand.name}
-                    </span>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
+            {/* Subcategories Filter (If available) */}
+            {availableSubcategories.length > 0 && (
+              <div className="space-y-3 pt-3 border-t border-industrial-100">
+                <h4 className="font-bold text-xs uppercase tracking-wider text-industrial-500 flex items-center justify-between">
+                  <span>Subcategories</span>
+                  <span className="text-[10px] text-industrial-400">{availableSubcategories.length}</span>
+                </h4>
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                  {availableSubcategories.map((sub, idx) => (
+                    <label
+                      key={idx}
+                      className="flex items-center justify-between text-xs text-industrial-700 hover:text-industrial-950 cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedSubcategories.includes(sub.name)}
+                          onChange={() => toggleSubcategory(sub.name)}
+                          className="w-3.5 h-3.5 text-brand-600 rounded focus:ring-brand-500"
+                        />
+                        <span className="truncate max-w-[150px]">{sub.name}</span>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
 
-          {/* GST Rate Filter */}
-          <div className="space-y-2 pt-3 border-t border-industrial-100">
-            <h4 className="font-bold text-xs text-industrial-800 uppercase tracking-wider">
-              GST Tax Bracket
-            </h4>
-            <div className="flex gap-2">
-              {[18, 28, 12].map((rate) => {
-                const isSelected = selectedGstRates.includes(rate);
-                return (
+            {/* Brands Filter */}
+            {brands.length > 0 && (
+              <div className="space-y-3 pt-3 border-t border-industrial-100">
+                <h4 className="font-bold text-xs uppercase tracking-wider text-industrial-500">
+                  Brands & Mills
+                </h4>
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                  {brands.map((brand) => (
+                    <label
+                      key={brand.id}
+                      className="flex items-center justify-between text-xs text-industrial-700 hover:text-industrial-950 cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedBrands.includes(brand.name)}
+                          onChange={() => toggleBrand(brand.name)}
+                          className="w-3.5 h-3.5 text-brand-600 rounded focus:ring-brand-500"
+                        />
+                        <span>{brand.name}</span>
+                      </div>
+                      {brand.productCount !== undefined && brand.productCount > 0 && (
+                        <span className="text-[10px] text-industrial-400 font-mono">
+                          {brand.productCount}
+                        </span>
+                      )}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* GST Rate Filter */}
+            <div className="space-y-3 pt-3 border-t border-industrial-100">
+              <h4 className="font-bold text-xs uppercase tracking-wider text-industrial-500">
+                GST Rate (ITC Claim)
+              </h4>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                {[18, 28].map((rate) => (
                   <button
                     key={rate}
-                    type="button"
                     onClick={() => toggleGstRate(rate)}
-                    className={`flex-1 py-1.5 rounded-lg border text-xs font-bold transition-all ${
-                      isSelected
-                        ? 'bg-brand-600 text-white border-brand-600'
-                        : 'border-industrial-200 bg-industrial-50 text-industrial-700 hover:bg-industrial-100'
+                    className={`py-2 px-3 rounded-xl border text-center font-mono font-bold transition-all cursor-pointer ${
+                      selectedGstRates.includes(rate)
+                        ? 'bg-emerald-50 border-emerald-500 text-emerald-800'
+                        : 'bg-white border-industrial-200 hover:border-industrial-300 text-industrial-800'
                     }`}
                   >
                     {rate}% GST
                   </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Seller Verified Checkbox */}
-          <div className="pt-3 border-t border-industrial-100">
-            <label className="flex items-center gap-2.5 text-xs text-industrial-800 font-semibold cursor-pointer select-none p-2 bg-emerald-50/60 rounded-xl border border-emerald-200">
-              <input
-                type="checkbox"
-                checked={onlyVerifiedSeller}
-                onChange={(e) => setOnlyVerifiedSeller(e.target.checked)}
-                className="rounded border-emerald-400 text-emerald-600 focus:ring-emerald-500 w-4 h-4"
-              />
-              <div className="flex items-center gap-1 text-emerald-900">
-                <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                <span>Verified Stockyards Only</span>
+                ))}
               </div>
-            </label>
-          </div>
-
-          {/* RFQ Sidebar Banner */}
-          <div className="p-4 bg-industrial-900 text-white rounded-xl space-y-2.5 text-xs">
-            <div className="flex items-center gap-1.5 text-brand-400 font-bold">
-              <FileText className="w-4 h-4" />
-              <span>Can't find exact grade?</span>
             </div>
-            <p className="text-[11px] text-industrial-300 leading-relaxed">
-              Post your custom cutting schedule or BOQ specs for instant supplier bids.
-            </p>
-            <button
-              onClick={() => openRFQModal()}
-              className="w-full py-2 bg-brand-600 hover:bg-brand-500 text-white font-bold rounded-lg transition-colors text-center"
-            >
-              Post Custom RFQ
-            </button>
+
+            {/* Verified Seller Switch */}
+            <div className="pt-3 border-t border-industrial-100">
+              <label className="flex items-center justify-between cursor-pointer">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-industrial-800">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                  <span>Verified Manufacturers</span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={onlyVerifiedSeller}
+                  onChange={(e) => setOnlyVerifiedSeller(e.target.checked)}
+                  className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500"
+                />
+              </label>
+            </div>
           </div>
         </aside>
 
-        {/* Product Grid Area */}
-        <main className="md:col-span-9 space-y-6">
+        {/* Right Products Area (9 cols) */}
+        <main className="lg:col-span-9 space-y-6">
           {isLoading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {[1, 2, 3, 4, 5, 6].map((n) => (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[...Array(6)].map((_, i) => (
                 <div
-                  key={n}
+                  key={i}
                   className="bg-white rounded-2xl border border-industrial-200 p-4 space-y-4 animate-pulse h-96"
                 >
-                  <div className="bg-industrial-200 rounded-xl aspect-4/3"></div>
-                  <div className="h-4 bg-industrial-200 rounded w-3/4"></div>
-                  <div className="h-3 bg-industrial-200 rounded w-1/2"></div>
-                  <div className="h-10 bg-industrial-100 rounded-xl"></div>
+                  <div className="bg-industrial-200 rounded-xl aspect-4/3" />
+                  <div className="h-4 bg-industrial-200 rounded w-3/4" />
+                  <div className="h-3 bg-industrial-200 rounded w-1/2" />
+                  <div className="h-10 bg-industrial-100 rounded-xl mt-6" />
                 </div>
               ))}
             </div>
           ) : filteredProducts.length === 0 ? (
-            <div className="bg-white rounded-3xl border border-industrial-200 p-12 text-center space-y-5 shadow-subtle">
-              <div className="w-16 h-16 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center mx-auto">
-                <Search className="w-8 h-8" />
+            <div className="bg-white rounded-3xl border border-industrial-200 p-12 text-center space-y-4 shadow-card">
+              <div className="w-16 h-16 rounded-2xl bg-industrial-100 text-industrial-400 flex items-center justify-center mx-auto text-2xl">
+                ??
               </div>
               <div className="space-y-1">
-                <h3 className="text-xl font-bold text-industrial-950">No exact match found</h3>
-                <p className="text-xs text-industrial-500 max-w-md mx-auto">
-                  We could not find items matching your search criteria. You can broadcast this exact material requirement as an RFQ to 500+ verified primary manufacturers.
+                <h3 className="text-lg font-bold text-industrial-950">No Materials Found</h3>
+                <p className="text-xs text-industrial-500 max-w-sm mx-auto">
+                  We couldn't find items matching your filter criteria. Try clearing filters or submit a custom RFQ.
                 </p>
               </div>
-              <div className="flex justify-center gap-3 pt-2">
+              <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
                 <button
                   onClick={handleClearAllFilters}
-                  className="px-5 py-2.5 rounded-xl border border-industrial-300 text-industrial-700 hover:bg-industrial-50 text-xs font-bold"
+                  className="px-4 py-2 bg-industrial-100 hover:bg-industrial-200 text-industrial-900 rounded-xl text-xs font-bold transition-colors cursor-pointer"
                 >
-                  Clear Filters
+                  Clear All Filters
                 </button>
                 <button
                   onClick={() => openRFQModal()}
-                  className="px-6 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold shadow-lg shadow-brand-600/25 flex items-center gap-2"
+                  className="px-5 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-brand-600/20 cursor-pointer flex items-center gap-1.5"
                 >
                   <FileText className="w-4 h-4" />
-                  <span>Broadcast RFQ for this item</span>
+                  <span>Request RFQ for Custom Specs</span>
                 </button>
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredProducts.map((product) => (
                 <ProductCard key={product.id} product={product} />
               ))}
@@ -477,66 +670,6 @@ export const CatalogPage: React.FC = () => {
           )}
         </main>
       </div>
-
-      {/* Mobile Filter Sheet */}
-      {isMobileFilterOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-industrial-950/60 backdrop-blur-xs md:hidden animate-in fade-in">
-          <div className="bg-white w-full max-w-xs h-full p-6 shadow-2xl flex flex-col space-y-6 overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-industrial-200">
-              <span className="font-bold text-sm text-industrial-900">Procurement Filters</span>
-              <button
-                onClick={() => setIsMobileFilterOpen(false)}
-                className="p-1 rounded-lg hover:bg-industrial-100 text-industrial-500"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Category Filter */}
-            <div className="space-y-2">
-              <h4 className="font-bold text-xs text-industrial-800 uppercase">Category</h4>
-              <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                {CATEGORIES.map((cat) => (
-                  <label key={cat.id} className="flex items-center gap-2 text-xs text-industrial-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={selectedCategories.includes(cat.name)}
-                      onChange={() => toggleCategory(cat.name)}
-                      className="rounded border-industrial-300 text-brand-600 focus:ring-brand-500"
-                    />
-                    <span>{cat.name}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {/* Brand Filter */}
-            <div className="space-y-2 pt-3 border-t border-industrial-100">
-              <h4 className="font-bold text-xs text-industrial-800 uppercase">Primary Brand</h4>
-              <div className="space-y-1.5 max-h-40 overflow-y-auto">
-                {BRANDS.map((brand) => (
-                  <label key={brand.id} className="flex items-center gap-2 text-xs text-industrial-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={selectedBrands.includes(brand.name)}
-                      onChange={() => toggleBrand(brand.name)}
-                      className="rounded border-industrial-300 text-brand-600 focus:ring-brand-500"
-                    />
-                    <span>{brand.name}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <button
-              onClick={() => setIsMobileFilterOpen(false)}
-              className="w-full py-3 bg-brand-600 text-white rounded-xl font-bold text-xs shadow-md mt-auto"
-            >
-              Apply Filters ({filteredProducts.length} items)
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

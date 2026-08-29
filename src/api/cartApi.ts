@@ -1,159 +1,129 @@
-import { apiClient, getCurrentUserId } from '../services/apiClient';
-import { mockDb } from './mockDb';
-import { mapBackendProductToFrontend } from './productApi';
-import type { Cart, CartItem } from '../types';
+import { apiClient } from '../services/apiClient';
+import type { Cart, CartItem, AddToCartInput, ApplyCouponResult } from '../types';
 
-export function mapBackendCart(data: any): Cart {
-  if (!data) {
+export function mapBackendCart(raw: any): Cart {
+  if (!raw) {
     return {
+      id: 'cart_current',
       items: [],
-      totalItems: 0,
       subtotal: 0,
-      totalBulkDiscount: 0,
-      taxableAmount: 0,
-      cgst: 0,
-      sgst: 0,
-      igst: 0,
-      totalGst: 0,
-      estimatedFreight: 0,
+      gstTotal: 0,
+      deliveryTotal: 0,
+      discountTotal: 0,
       grandTotal: 0,
+      estimatedDeliveryDays: 2,
     };
   }
 
-  const rawItems = Array.isArray(data.items) ? data.items : [];
-  const items: CartItem[] = rawItems.map((item: any) => {
-    const qty = Number(item.quantity || 1);
-    const unitPrice = Number(item.unitPrice || item.regularPrice || item.price || 0);
-    const regularPrice = Number(item.regularPrice || unitPrice);
-    const subtotal = Number(item.subtotal || unitPrice * qty);
-    const gstRate = Number(item.gstPercentage || item.gstRate || 18);
-    const gstAmount = Number(item.gstAmount || subtotal * (gstRate / 100));
-    const totalPrice = Number(item.total || subtotal + gstAmount);
-    const unitSavings = Math.max(0, regularPrice - unitPrice);
-    const bulkSavings = unitSavings * qty;
-
-    const product = item.product
-      ? mapBackendProductToFrontend(item.product)
-      : mapBackendProductToFrontend({
-          id: item.productId || item.id,
-          productName: item.productName || 'Industrial Material',
-          slug: item.productSlug || `product-${item.productId || item.id}`,
-          sellingPrice: unitPrice,
-          mrp: regularPrice,
-          unit: item.unit || 'Ton',
-          moq: item.moq || 1,
-          gstRate,
-          primaryImageUrl: item.primaryImageUrl || item.imageUrl,
-          stock: item.availableStock || 500,
-        });
-
-    return {
-      id: String(item.id),
-      product,
-      quantity: qty,
-      selectedUnitPrice: unitPrice,
-      unit: product.unit,
-      gstRate,
-      bulkSavings,
-      totalPrice,
-    };
-  });
-
-  const subtotal = Number(data.subtotal || items.reduce((acc, i) => acc + i.selectedUnitPrice * i.quantity, 0));
-  const totalGst = Number(data.gstTotal || items.reduce((acc, i) => acc + (i.selectedUnitPrice * i.quantity * (i.gstRate / 100)), 0));
-  const estimatedFreight = Number(data.deliveryCharge || (subtotal > 0 ? 2500 : 0));
-  const grandTotal = Number(data.grandTotal || subtotal + totalGst + estimatedFreight);
-  const totalItems = items.reduce((acc, i) => acc + i.quantity, 0);
-  const totalBulkDiscount = items.reduce((acc, i) => acc + i.bulkSavings, 0);
+  const items: CartItem[] = Array.isArray(raw.items)
+    ? raw.items.map((it: any) => ({
+        productId: String(it.productId || it.id || ''),
+        title: it.title || it.productName || it.product?.title || '',
+        brand: it.brand || it.product?.brand || '',
+        category: it.category || it.product?.category || '',
+        price: Number(it.pricePerUnit || it.unitPrice || it.price || 0),
+        unitPrice: Number(it.pricePerUnit || it.unitPrice || it.price || 0),
+        effectiveUnitPrice: Number(it.effectivePrice || it.pricePerUnit || it.unitPrice || it.price || 0),
+        totalPrice: Number(it.totalPrice || (it.price || 0) * (it.quantity || 1)),
+        unit: it.unit || 'Piece',
+        quantity: Number(it.quantity || 1),
+        gstRate: Number(it.gstRate || 18),
+        hsnCode: it.hsnCode || '',
+        imageUrl: it.imageUrl || it.product?.imageUrl || '',
+        moq: Number(it.moq || 1),
+        stock: Number(it.stockQty || it.stock || 1000),
+        is24HourDelivery: Boolean(it.is24HourDelivery),
+        deliveryCharge: Number(it.deliveryCharge || 0),
+        seller: {
+          id: String(it.vendorId || it.seller?.id || ''),
+          name: it.vendorName || it.seller?.name || 'Verified Vendor',
+          isVerified: true,
+          rating: 4.8,
+          city: '',
+          state: '',
+          successfulOrders: 0,
+          gstinMasked: '',
+        },
+      }))
+    : [];
 
   return {
+    id: String(raw.cartId || raw.id || 'cart_current'),
+    cartId: raw.cartId,
     items,
-    totalItems,
-    subtotal,
-    totalBulkDiscount,
-    taxableAmount: subtotal,
-    cgst: Math.round(totalGst / 2),
-    sgst: Math.round(totalGst / 2),
-    igst: 0,
-    totalGst,
-    estimatedFreight,
-    grandTotal,
+    subtotal: Number(raw.subtotal || 0),
+    gstTotal: Number(raw.gstTotal || raw.taxTotal || 0),
+    deliveryTotal: Number(raw.deliveryTotal || raw.shippingTotal || 0),
+    discountTotal: Number(raw.discountTotal || 0),
+    grandTotal: Number(raw.grandTotal || raw.total || 0),
+    appliedCoupon: raw.appliedCoupon,
+    estimatedDeliveryDays: Number(raw.estimatedDeliveryDays || 2),
+    weightEstimateKg: raw.weightEstimateKg,
   };
 }
 
 export const cartApi = {
+  // 9.1 Get Current User Cart
   async getCart(): Promise<Cart> {
-    const userId = getCurrentUserId();
     try {
-      const res = await apiClient.get('/cart', { params: { userId } });
+      const res = await apiClient.get('/cart');
       if (res.data?.success && res.data?.data) {
         return mapBackendCart(res.data.data);
       }
-    } catch (err) {
-      console.warn('Backend /cart failed, using local cart storage:', err);
-    }
-    return mockDb.getCart();
-  },
-
-  async addToCart(productId: string, quantity: number): Promise<Cart> {
-    const userId = getCurrentUserId();
-    try {
-      const numProductId = Number(productId.replace(/\D/g, '')) || 1;
-      const res = await apiClient.post(
-        `/cart/items?userId=${userId}`,
-        {
-          productId: numProductId,
-          quantity,
-        }
-      );
-      if (res.data?.success && res.data?.data) {
-        return mapBackendCart(res.data.data);
+      if (res.data?.items) {
+        return mapBackendCart(res.data);
       }
     } catch (err) {
-      console.warn('Backend addToCart failed, using local cart:', err);
+      console.warn('Backend GET /cart error:', err);
     }
-    return mockDb.addToCart(productId, quantity);
+    return mapBackendCart(null);
   },
 
-  async updateQuantity(itemId: string, quantity: number): Promise<Cart> {
-    const userId = getCurrentUserId();
-    try {
-      const numItemId = Number(itemId.replace(/\D/g, '')) || 1;
-      const res = await apiClient.put(
-        `/cart/items/${numItemId}?userId=${userId}`,
-        { quantity }
-      );
-      if (res.data?.success && res.data?.data) {
-        return mapBackendCart(res.data.data);
-      }
-    } catch (err) {
-      console.warn('Backend updateQuantity failed, using local cart:', err);
+  // 9.2 Add / Update Item in Cart
+  async addToCart(payload: AddToCartInput): Promise<Cart> {
+    const res = await apiClient.post('/cart/items', payload);
+    if (res.data?.success && res.data?.data) {
+      return mapBackendCart(res.data.data);
     }
-    return mockDb.updateCartItem(itemId, quantity);
-  },
-
-  async removeItem(itemId: string): Promise<Cart> {
-    const userId = getCurrentUserId();
-    try {
-      const numItemId = Number(itemId.replace(/\D/g, '')) || 1;
-      const res = await apiClient.delete(`/cart/items/${numItemId}?userId=${userId}`);
-      if (res.data?.success && res.data?.data) {
-        return mapBackendCart(res.data.data);
-      }
-    } catch (err) {
-      console.warn('Backend removeItem failed, using local cart:', err);
+    if (res.data?.items) {
+      return mapBackendCart(res.data);
     }
-    return mockDb.removeFromCart(itemId);
-  },
-
-  async clearCart(): Promise<Cart> {
-    const userId = getCurrentUserId();
-    try {
-      await apiClient.delete(`/cart/clear?userId=${userId}`);
-    } catch (err) {
-      console.warn('Backend clearCart failed:', err);
-    }
-    mockDb.clearCart();
     return this.getCart();
+  },
+
+  // 9.3 Remove Item from Cart
+  async removeItem(productId: number | string): Promise<Cart> {
+    const res = await apiClient.delete(`/cart/items/${productId}`);
+    if (res.data?.success && res.data?.data) {
+      return mapBackendCart(res.data.data);
+    }
+    return this.getCart();
+  },
+
+  // 9.4 Clear Entire Cart
+  async clearCart(): Promise<Cart> {
+    const res = await apiClient.delete('/cart');
+    if (res.data?.success && res.data?.data) {
+      return mapBackendCart(res.data.data);
+    }
+    return mapBackendCart(null);
+  },
+
+  // 9.5 Apply Coupon
+  async applyCoupon(couponCode: string): Promise<ApplyCouponResult> {
+    const res = await apiClient.post('/cart/coupon', { couponCode });
+    if (res.data?.success && res.data?.data) {
+      return {
+        success: true,
+        message: res.data.message || 'Coupon applied successfully',
+        discountAmount: res.data.data.discountAmount || 0,
+        coupon: res.data.data.appliedCoupon || { code: couponCode, discountPercentage: 5, description: '' },
+      };
+    }
+    return {
+      success: false,
+      message: res.data?.message || 'Invalid coupon code',
+      discountAmount: 0,
+    };
   },
 };

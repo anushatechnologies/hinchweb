@@ -7,14 +7,13 @@ import {
   Building2,
   CheckCheck,
   ShieldCheck,
-  Sparkles,
 } from 'lucide-react';
 
 const QUICK_PROMPTS = [
   'Can you provide Mill Test Certificate (MTC)?',
-  'What is the best price for 50+ Tons delivery to Hyderabad?',
-  'Can you dispatch within 48 hours?',
-  'Do you support 45-day credit terms on HinchMart PayLater?',
+  'What is the best price for 50+ Tons delivery to project site?',
+  'Can you dispatch within 24 to 48 hours?',
+  'Do you support 30 to 45 day commercial credit terms?',
 ];
 
 export const ChatDrawer: React.FC = () => {
@@ -58,6 +57,7 @@ export const ChatDrawer: React.FC = () => {
   };
 
   const seller = activeSeller || activeConversation?.seller;
+  const sellerName = seller?.name || activeConversation?.sellerName || 'Supplier Direct Desk';
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-industrial-950/60 backdrop-blur-xs animate-in fade-in">
@@ -74,15 +74,15 @@ export const ChatDrawer: React.FC = () => {
             <div>
               <div className="flex items-center gap-1.5">
                 <h4 className="font-bold text-sm truncate max-w-[200px]">
-                  {seller ? seller.name : 'Supplier Direct Desk'}
+                  {sellerName}
                 </h4>
                 {seller?.isVerified && (
                   <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
                 )}
               </div>
               <div className="text-[11px] text-industrial-300 flex items-center gap-1">
-                <span>{seller ? `${seller.city}, ${seller.state}` : 'Verified Network'}</span>
-                <span>•</span>
+                <span>{seller?.city ? `${seller.city}, ${seller.state}` : 'Verified Network'}</span>
+                <span>�</span>
                 <span className="text-emerald-400 font-medium">Online for RFQs</span>
               </div>
             </div>
@@ -91,13 +91,13 @@ export const ChatDrawer: React.FC = () => {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setActiveTab(activeTab === 'chat' ? 'conversations' : 'chat')}
-              className="text-xs px-2.5 py-1 rounded-lg bg-industrial-800 hover:bg-industrial-700 text-industrial-200"
+              className="text-xs px-2.5 py-1 rounded-lg bg-industrial-800 hover:bg-industrial-700 text-industrial-200 cursor-pointer"
             >
               {activeTab === 'chat' ? 'All Chats' : 'Back'}
             </button>
             <button
               onClick={closeChat}
-              className="p-1.5 text-industrial-400 hover:text-white rounded-lg hover:bg-white/10"
+              className="p-1.5 text-industrial-400 hover:text-white rounded-lg hover:bg-white/10 cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -110,27 +110,31 @@ export const ChatDrawer: React.FC = () => {
             <div className="px-3 py-2 text-xs font-bold text-industrial-500 uppercase tracking-wider">
               Recent Supplier Discussions
             </div>
-            {conversations.map((conv) => (
-              <div
-                key={conv.id}
-                onClick={() => {
-                  openConversation(conv);
-                  setActiveTab('chat');
-                }}
-                className="p-3 rounded-xl hover:bg-industrial-50 cursor-pointer transition-colors space-y-1"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-xs text-industrial-900 truncate">
-                    {conv.seller.name}
-                  </span>
-                  <span className="text-[10px] text-industrial-400">
-                    {formatTimeAgo(conv.lastMessageTime)}
-                  </span>
+            {conversations.length === 0 ? (
+              <div className="p-8 text-center text-xs text-industrial-400">No previous conversations yet.</div>
+            ) : (
+              conversations.map((conv) => (
+                <div
+                  key={conv.id}
+                  onClick={() => {
+                    openConversation(conv);
+                    setActiveTab('chat');
+                  }}
+                  className="p-3 rounded-xl hover:bg-industrial-50 cursor-pointer transition-colors space-y-1"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs text-industrial-900 truncate">
+                      {conv.seller?.name || conv.sellerName || 'Direct Support'}
+                    </span>
+                    <span className="text-[10px] text-industrial-400">
+                      {formatTimeAgo(conv.lastMessageTime || new Date().toISOString())}
+                    </span>
+                  </div>
+                  <div className="text-xs font-semibold text-brand-700 truncate">{conv.subject}</div>
+                  <div className="text-[11px] text-industrial-500 truncate">{conv.lastMessage}</div>
                 </div>
-                <div className="text-xs font-semibold text-brand-700 truncate">{conv.subject}</div>
-                <div className="text-[11px] text-industrial-500 truncate">{conv.lastMessage}</div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         ) : (
           /* Active Chat View */
@@ -151,12 +155,12 @@ export const ChatDrawer: React.FC = () => {
             <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-industrial-50/50">
               <div className="text-center my-2">
                 <span className="text-[10px] bg-industrial-200/70 text-industrial-600 px-3 py-1 rounded-full font-medium">
-                  Verified HinchMart Direct Chat • End-to-End Logged for Purchase Orders
+                  Verified HinchMart Direct Chat � Logged with Mill Sales Desk
                 </span>
               </div>
 
               {messages.map((msg) => {
-                const isBuyer = msg.sender === 'buyer';
+                const isBuyer = msg.sender === 'buyer' || msg.senderId === 'current_user';
                 return (
                   <div
                     key={msg.id}
@@ -172,7 +176,7 @@ export const ChatDrawer: React.FC = () => {
                           : 'bg-white text-industrial-900 rounded-bl-xs border border-industrial-200 shadow-subtle'
                       }`}
                     >
-                      {msg.message}
+                      {msg.message || msg.text}
                     </div>
                     <div className="flex items-center gap-1 text-[9px] text-industrial-400 mt-0.5 px-1">
                       <span>{formatTimeAgo(msg.timestamp)}</span>
@@ -185,33 +189,31 @@ export const ChatDrawer: React.FC = () => {
             </div>
 
             {/* Quick Prompts */}
-            <div className="p-2 bg-white border-t border-industrial-100 flex gap-1.5 overflow-x-auto no-scrollbar">
-              {QUICK_PROMPTS.map((prompt, i) => (
+            <div className="p-2.5 bg-white border-t border-industrial-200 flex gap-2 overflow-x-auto no-scrollbar">
+              {QUICK_PROMPTS.map((prompt, idx) => (
                 <button
-                  key={i}
-                  type="button"
+                  key={idx}
                   onClick={() => handleQuickPrompt(prompt)}
-                  className="whitespace-nowrap px-2.5 py-1 rounded-full bg-industrial-100 hover:bg-brand-50 hover:text-brand-700 hover:border-brand-300 text-[10px] text-industrial-700 font-medium border border-industrial-200 transition-colors shrink-0 flex items-center gap-1"
+                  className="px-3 py-1 rounded-full bg-industrial-100 hover:bg-brand-50 hover:text-brand-700 text-industrial-700 text-[11px] font-medium whitespace-nowrap transition-colors shrink-0 cursor-pointer"
                 >
-                  <Sparkles className="w-2.5 h-2.5 text-brand-500" />
                   {prompt}
                 </button>
               ))}
             </div>
 
-            {/* Input Bar */}
+            {/* Input Row */}
             <form onSubmit={handleSend} className="p-3 bg-white border-t border-industrial-200 flex gap-2">
               <input
                 type="text"
+                placeholder="Type technical inquiry, grade specs, delivery timeline..."
                 value={inputMsg}
                 onChange={(e) => setInputMsg(e.target.value)}
-                placeholder="Ask about bulk rates, testing certificates, dispatch..."
                 className="flex-1 px-3.5 py-2.5 bg-industrial-50 border border-industrial-300 rounded-xl text-xs text-industrial-900 placeholder:text-industrial-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
               <button
                 type="submit"
                 disabled={!inputMsg.trim()}
-                className="p-2.5 bg-brand-600 hover:bg-brand-500 disabled:opacity-40 text-white rounded-xl shadow-md shadow-brand-600/20 transition-all flex items-center justify-center"
+                className="px-4 py-2.5 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-brand-600/20 flex items-center justify-center cursor-pointer"
               >
                 <Send className="w-4 h-4" />
               </button>

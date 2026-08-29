@@ -5,9 +5,10 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { useLocationStore } from '../../store/useLocationStore';
 import { useRFQModalStore } from '../../store/useRFQModalStore';
 import { useChatStore } from '../../store/useChatStore';
-import { CATEGORIES } from '../../api/mockData';
+import { categoryApi } from '../../api/categoryApi';
+import { searchApi } from '../../api/searchApi';
 import { notificationApi } from '../../api/notificationApi';
-import type { Notification } from '../../types';
+import type { Notification, Category, SearchSuggestions } from '../../types';
 import { useAuthModalStore } from '../../store/useAuthModalStore';
 import {
   Search,
@@ -24,6 +25,8 @@ import {
   Truck,
   Sparkles,
   User,
+  Tag,
+  Layers,
 } from 'lucide-react';
 
 export const Header: React.FC = () => {
@@ -37,17 +40,30 @@ export const Header: React.FC = () => {
   const { openAuthModal } = useAuthModalStore();
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [suggestions, setSuggestions] = useState<SearchSuggestions>({
+    suggestions: [],
+    matchingCategories: [],
+    matchingBrands: [],
+  });
+  const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
   const notifRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     notificationApi
       .getNotifications()
       .then(setNotifications)
+      .catch(console.error);
+
+    categoryApi
+      .getCategories()
+      .then(setCategories)
       .catch(console.error);
 
     const handleClickOutside = (event: MouseEvent) => {
@@ -57,16 +73,57 @@ export const Header: React.FC = () => {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
         setIsUserMenuOpen(false);
       }
+      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
+        setIsSuggestionsOpen(false);
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Debounced search suggestions fetching
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSuggestions({ suggestions: [], matchingCategories: [], matchingBrands: [] });
+      setIsSuggestionsOpen(false);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      searchApi
+        .getSuggestions(searchQuery)
+        .then((data) => {
+          setSuggestions(data);
+          const hasResults =
+            data.suggestions.length > 0 ||
+            data.matchingCategories.length > 0 ||
+            data.matchingBrands.length > 0;
+          setIsSuggestionsOpen(hasResults);
+        })
+        .catch(() => setIsSuggestionsOpen(false));
+    }, 200);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchQuery.trim()) return;
+    setIsSuggestionsOpen(false);
     navigate(`/catalog?search=${encodeURIComponent(searchQuery.trim())}`);
+  };
+
+  const handleSelectSuggestion = (type: 'query' | 'category' | 'brand', value: string) => {
+    setIsSuggestionsOpen(false);
+    if (type === 'category') {
+      navigate(`/category/${encodeURIComponent(value.toLowerCase().replace(/\s+/g, '-'))}`);
+    } else if (type === 'brand') {
+      navigate(`/catalog?brand=${encodeURIComponent(value)}`);
+    } else {
+      setSearchQuery(value);
+      navigate(`/catalog?search=${encodeURIComponent(value)}`);
+    }
   };
 
   const unreadNotifs = notifications.filter((n) => !n.isRead);
@@ -78,7 +135,7 @@ export const Header: React.FC = () => {
 
   return (
     <header className="sticky top-0 z-40 bg-white border-b border-industrial-200 shadow-subtle">
-      {/* 0. Top Enterprise Business Bar (like Moglix Business) */}
+      {/* 0. Top Enterprise Business Bar */}
       <div className="bg-gradient-to-r from-red-950 via-industrial-950 to-red-950 text-white text-xs py-1.5 px-4 sm:px-8 lg:px-12 flex items-center justify-between border-b border-red-900/40">
         <div className="flex items-center gap-2 overflow-hidden text-[11px] sm:text-xs">
           <span className="font-extrabold text-brand-400 tracking-wide flex items-center gap-1.5">
@@ -99,7 +156,7 @@ export const Header: React.FC = () => {
         </Link>
       </div>
 
-      {/* Main Navigation Row (Moglix layout) */}
+      {/* Main Navigation Row */}
       <div className="max-w-[1720px] w-full mx-auto px-4 sm:px-8 lg:px-12 py-3 flex items-center justify-between gap-4">
         {/* Left: Brand Logo & Location */}
         <div className="flex items-center gap-3 shrink-0">
@@ -111,7 +168,7 @@ export const Header: React.FC = () => {
             />
           </Link>
 
-          {/* Location Delivery Selector (Moglix style) */}
+          {/* Location Delivery Selector */}
           <button
             onClick={openPincodeModal}
             className="hidden md:flex flex-col text-left pl-3 border-l border-industrial-200 hover:opacity-80 transition-opacity cursor-pointer"
@@ -127,29 +184,95 @@ export const Header: React.FC = () => {
           </button>
         </div>
 
-        {/* Center: Search Bar with Red Moglix-style search button */}
-        <form
-          onSubmit={handleSearch}
-          className="flex-1 max-w-2xl hidden md:flex items-center bg-white border-2 border-industrial-200 focus-within:border-red-600 rounded-xl overflow-hidden shadow-2xs transition-all"
-        >
-          <input
-            type="text"
-            placeholder="Search Product, Category, Brand, HSN, Power Tools, Cement, TMT Steel..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="flex-1 px-4 py-2.5 text-xs text-industrial-900 placeholder:text-industrial-400 bg-transparent focus:outline-none font-medium"
-          />
-
-          <button
-            type="submit"
-            aria-label="Search catalog"
-            className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white flex items-center justify-center transition-colors shadow-sm cursor-pointer"
+        {/* Center: Search Bar with Live Instant Suggestions */}
+        <div className="flex-1 max-w-2xl hidden md:block relative" ref={searchContainerRef}>
+          <form
+            onSubmit={handleSearch}
+            className="flex items-center bg-white border-2 border-industrial-200 focus-within:border-red-600 rounded-xl overflow-hidden shadow-2xs transition-all"
           >
-            <Search className="w-4 h-4" />
-          </button>
-        </form>
+            <input
+              type="text"
+              placeholder="Search Product, Category, Brand, HSN, Power Tools, Cement, TMT Steel..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => {
+                if (suggestions.suggestions.length > 0) setIsSuggestionsOpen(true);
+              }}
+              className="flex-1 px-4 py-2.5 text-xs text-industrial-900 placeholder:text-industrial-400 bg-transparent focus:outline-none font-medium"
+            />
 
-        {/* Right Action Widgets (Post RFQ, Track Order, Supplier Chat, Notifications, User/Login, Cart) */}
+            <button
+              type="submit"
+              aria-label="Search catalog"
+              className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white flex items-center justify-center transition-colors shadow-sm cursor-pointer"
+            >
+              <Search className="w-4 h-4" />
+            </button>
+          </form>
+
+          {/* Search Suggestions Dropdown */}
+          {isSuggestionsOpen && (
+            <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-2xl shadow-2xl border border-industrial-200 overflow-hidden z-50 animate-in fade-in zoom-in-95 text-xs divide-y divide-industrial-100">
+              {suggestions.matchingCategories.length > 0 && (
+                <div className="p-2.5 bg-industrial-50/70">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-industrial-400 px-2 mb-1 flex items-center gap-1">
+                    <Layers className="w-3 h-3 text-brand-600" />
+                    <span>Categories</span>
+                  </div>
+                  {suggestions.matchingCategories.map((cat, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => handleSelectSuggestion('category', cat)}
+                      className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-brand-50 hover:text-brand-700 font-semibold text-industrial-800 transition-colors flex items-center justify-between cursor-pointer"
+                    >
+                      <span>{cat}</span>
+                      <span className="text-[10px] text-industrial-400">Category</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {suggestions.matchingBrands.length > 0 && (
+                <div className="p-2.5 bg-industrial-50/40">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-industrial-400 px-2 mb-1 flex items-center gap-1">
+                    <Tag className="w-3 h-3 text-red-600" />
+                    <span>Brands</span>
+                  </div>
+                  {suggestions.matchingBrands.map((brand, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => handleSelectSuggestion('brand', brand)}
+                      className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-brand-50 hover:text-brand-700 font-semibold text-industrial-800 transition-colors flex items-center justify-between cursor-pointer"
+                    >
+                      <span>{brand}</span>
+                      <span className="text-[10px] text-industrial-400">Brand</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {suggestions.suggestions.length > 0 && (
+                <div className="p-2.5">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-industrial-400 px-2 mb-1">
+                    Keyword Suggestions
+                  </div>
+                  {suggestions.suggestions.map((sug, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => handleSelectSuggestion('query', sug)}
+                      className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-industrial-100 text-industrial-800 font-medium transition-colors flex items-center gap-2 cursor-pointer"
+                    >
+                      <Search className="w-3.5 h-3.5 text-industrial-400" />
+                      <span>{sug}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Right Action Widgets */}
         <div className="flex items-center gap-3 sm:gap-4">
           {/* Post RFQ Button */}
           <button
@@ -171,7 +294,7 @@ export const Header: React.FC = () => {
 
           {/* Chat with Supplier Trigger */}
           <button
-            onClick={() => openChatWithSeller(CATEGORIES[0] as any)}
+            onClick={() => openChatWithSeller((categories[0] || { name: 'Direct Technical Support' }) as any)}
             className="p-2 rounded-xl border border-industrial-200 hover:bg-industrial-100 text-industrial-700 hover:text-industrial-900 relative transition-colors cursor-pointer"
             title="Direct Supplier Chat"
           >
@@ -196,13 +319,11 @@ export const Header: React.FC = () => {
 
             {isNotifOpen && (
               <>
-                {/* Mobile Backdrop */}
                 <div
                   className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-40 sm:hidden"
                   onClick={() => setIsNotifOpen(false)}
                 />
 
-                {/* Dropdown Container: Fixed & centered on mobile, right-aligned on desktop */}
                 <div className="fixed sm:absolute left-3 right-3 sm:left-auto sm:right-0 top-16 sm:top-full mt-2 sm:w-96 max-w-[calc(100vw-24px)] bg-white rounded-2xl shadow-2xl border border-industrial-200 overflow-hidden z-50 animate-in fade-in zoom-in-95">
                   <div className="p-3.5 bg-industrial-900 text-white flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -223,7 +344,7 @@ export const Header: React.FC = () => {
                         className="sm:hidden text-industrial-400 hover:text-white text-xs px-1 py-0.5 rounded cursor-pointer"
                         aria-label="Close notifications"
                       >
-                        ✕
+                        ?
                       </button>
                     </div>
                   </div>
@@ -267,11 +388,11 @@ export const Header: React.FC = () => {
                 className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-industrial-100 transition-colors text-left cursor-pointer"
               >
                 <div className="w-8 h-8 rounded-full bg-industrial-900 text-white font-black text-xs flex items-center justify-center">
-                  {user.companyName.charAt(0)}
+                  {(user.companyName || user.name || 'H').charAt(0)}
                 </div>
                 <div className="hidden sm:block">
                   <div className="text-xs font-bold text-industrial-900 leading-tight">
-                    {user.name.split(' ')[0]}
+                    {(user.fullName || user.name || 'User').split(' ')[0]}
                   </div>
                   <div className="text-[10px] text-industrial-500">Enterprise Buyer</div>
                 </div>
@@ -280,17 +401,15 @@ export const Header: React.FC = () => {
 
               {isUserMenuOpen && (
                 <>
-                  {/* Mobile Backdrop */}
                   <div
                     className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-40 sm:hidden"
                     onClick={() => setIsUserMenuOpen(false)}
                   />
 
-                  {/* Dropdown Container */}
                   <div className="fixed sm:absolute left-3 right-3 sm:left-auto sm:right-0 top-16 sm:top-full mt-2 sm:w-64 max-w-[calc(100vw-24px)] bg-white rounded-2xl shadow-2xl border border-industrial-200 py-2 z-50 animate-in fade-in zoom-in-95 text-xs text-industrial-800">
                     <div className="px-4 py-2 border-b border-industrial-100 flex items-center justify-between">
                       <div>
-                        <div className="font-bold text-industrial-950">{user.companyName}</div>
+                        <div className="font-bold text-industrial-950">{user.companyName || 'Apex Infra'}</div>
                         <div className="text-[11px] text-industrial-500">GSTIN: {user.gstin}</div>
                       </div>
                       <button
@@ -298,7 +417,7 @@ export const Header: React.FC = () => {
                         className="sm:hidden text-industrial-400 hover:text-industrial-700 text-xs px-1 py-0.5"
                         aria-label="Close menu"
                       >
-                        ✕
+                        ?
                       </button>
                     </div>
 

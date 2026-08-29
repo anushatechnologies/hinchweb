@@ -1,69 +1,68 @@
-import { apiClient, getCurrentUserId } from '../services/apiClient';
-import { mockDb } from './mockDb';
+import { apiClient } from '../services/apiClient';
 import type { Quote, Order } from '../types';
+import { mapBackendOrder } from './orderApi';
 
 export function mapBackendQuote(raw: any, rfqId: string): Quote {
-  const pricePerUnit = Number(raw.pricePerUnit || 58500);
-  const qty = Number(raw.quantity || 50);
-  const subtotal = Number(raw.totalPrice || pricePerUnit * qty);
-  const gstAmount = Math.round(subtotal * 0.18);
-  const deliveryCharge = 5000;
-  const landedCost = subtotal + gstAmount + deliveryCharge;
+  const pricePerUnit = Number(raw.pricePerUnit || raw.unitPrice || 0);
+  const qty = Number(raw.quantity || 1);
+  const subtotal = Number(raw.totalPrice || raw.subtotal || pricePerUnit * qty);
+  const gstAmount = Number(raw.gstAmount || Math.round(subtotal * 0.18));
+  const deliveryCharge = Number(raw.deliveryCharge || 0);
+  const landedCost = Number(raw.landedCost || (subtotal + gstAmount + deliveryCharge));
 
   return {
-    id: String(raw.id),
+    id: String(raw.id || raw.quoteId || ''),
     rfqId,
     seller: {
-      id: String(raw.sellerId || '5'),
-      name: raw.sellerCompanyName || raw.sellerName || 'Tata Steel Distribution Hub',
-      city: raw.city || 'Pune',
-      state: raw.state || 'Maharashtra',
-      isVerified: true,
-      rating: 4.9,
-      successfulOrders: 4280,
-      gstinMasked: '27AAACT2727Q1ZW',
+      id: String(raw.sellerId || raw.vendorId || ''),
+      name: raw.sellerCompanyName || raw.sellerName || raw.vendorName || 'Verified Supplier',
+      city: raw.city || '',
+      state: raw.state || '',
+      isVerified: Boolean(raw.isVerified ?? true),
+      rating: Number(raw.rating || 4.8),
+      successfulOrders: Number(raw.successfulOrders || 0),
+      gstinMasked: raw.gstinMasked || '',
     },
     pricePerUnit,
     quantity: qty,
     unit: raw.unit || 'Ton',
     subtotal,
-    gstRate: 18,
+    gstRate: Number(raw.gstRate || 18),
     gstAmount,
     deliveryCharge,
     landedCost,
-    deliveryDays: Number(raw.leadTimeDays || 3),
-    paymentTerms: '50% Advance, 50% on Delivery',
-    validUntil: raw.validUntil || '2026-08-30',
+    deliveryDays: Number(raw.leadTimeDays || raw.deliveryDays || 3),
+    paymentTerms: raw.paymentTerms || '30 Days Net Credit',
+    validUntil: raw.validUntil || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     isAccepted: raw.status === 'ACCEPTED',
     createdAt: raw.createdAt || new Date().toISOString(),
-    notes: raw.comments || 'Mill Test Certificate (MTC) and weighbridge slip included with trailer dispatch.',
+    notes: raw.comments || raw.notes || '',
   };
 }
 
 export const quoteApi = {
   async getQuotesForRFQ(rfqId: string): Promise<Quote[]> {
-    const userId = getCurrentUserId();
     try {
-      const res = await apiClient.get(`/buyer/rfq/${rfqId}/quotes`, { params: { userId } });
+      const res = await apiClient.get(`/rfqs/${rfqId}/quotes`);
       if (res.data?.success && Array.isArray(res.data?.data)) {
         return res.data.data.map((q: any) => mapBackendQuote(q, rfqId));
       }
-    } catch {
-      // fallback
+      if (Array.isArray(res.data)) {
+        return res.data.map((q: any) => mapBackendQuote(q, rfqId));
+      }
+    } catch (err) {
+      console.warn(`Backend GET /rfqs/${rfqId}/quotes error:`, err);
     }
-    return mockDb.getQuotesForRFQ(rfqId);
+    return [];
   },
 
   async acceptQuote(quoteId: string): Promise<{ quote: Quote; order: Order }> {
-    const userId = getCurrentUserId();
-    try {
-      const res = await apiClient.post(`/buyer/rfq/quotes/${quoteId}/accept?userId=${userId}`);
-      if (res.data?.success) {
-        // Return updated quote and converted order from mock or response
-      }
-    } catch {
-      // fallback
+    const res = await apiClient.post(`/rfqs/quotes/${quoteId}/accept`);
+    if (res.data?.success && res.data?.data) {
+      const quote = mapBackendQuote(res.data.data.quote || res.data.data, '');
+      const order = mapBackendOrder(res.data.data.order || res.data.data);
+      return { quote, order };
     }
-    return mockDb.acceptQuote(quoteId);
+    throw new Error(res.data?.message || 'Failed to accept quote');
   },
 };

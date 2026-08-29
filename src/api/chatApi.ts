@@ -1,32 +1,35 @@
-import { apiClient, getCurrentUserId } from '../services/apiClient';
-import { mockDb } from './mockDb';
+import { apiClient } from '../services/apiClient';
 import type { Conversation, ChatMessage } from '../types';
 
 export const chatApi = {
   async getConversations(): Promise<Conversation[]> {
-    const userId = getCurrentUserId();
     try {
-      const res = await apiClient.get('/buyer/conversations', { params: { userId } });
+      const res = await apiClient.get('/conversations');
       if (res.data?.success && Array.isArray(res.data?.data)) {
         return res.data.data;
       }
-    } catch {
-      // fallback
+      if (Array.isArray(res.data)) {
+        return res.data;
+      }
+    } catch (err) {
+      console.warn('Backend GET /conversations error:', err);
     }
-    return mockDb.getConversations();
+    return [];
   },
 
   async getMessages(conversationId: string): Promise<ChatMessage[]> {
-    const userId = getCurrentUserId();
     try {
-      const res = await apiClient.get(`/buyer/conversations/${conversationId}/messages`, { params: { userId } });
+      const res = await apiClient.get(`/conversations/${conversationId}/messages`);
       if (res.data?.success && Array.isArray(res.data?.data)) {
         return res.data.data;
       }
-    } catch {
-      // fallback
+      if (Array.isArray(res.data)) {
+        return res.data;
+      }
+    } catch (err) {
+      console.warn(`Backend GET /conversations/${conversationId}/messages error:`, err);
     }
-    return mockDb.getMessages(conversationId);
+    return [];
   },
 
   async sendMessage(params: {
@@ -37,15 +40,10 @@ export const chatApi = {
     referenceId?: string;
     message: string;
   }): Promise<{ conversation: Conversation; message: ChatMessage }> {
-    const userId = getCurrentUserId();
-    try {
-      const res = await apiClient.post(`/buyer/conversations/send?userId=${userId}`, params);
-      if (res.data?.success && res.data?.data) {
-        return res.data.data;
-      }
-    } catch {
-      // fallback
+    const res = await apiClient.post('/conversations/send', params);
+    if (res.data?.success && res.data?.data) {
+      return res.data.data;
     }
-    return mockDb.sendMessage(params);
+    throw new Error(res.data?.message || 'Failed to send chat message');
   },
 };

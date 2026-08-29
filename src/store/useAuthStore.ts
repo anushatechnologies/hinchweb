@@ -2,7 +2,24 @@ import { create } from 'zustand';
 import type { User, Address } from '../types';
 import { authApi } from '../api/authApi';
 import { addressApi } from '../api/addressApi';
-import { INITIAL_USER, INITIAL_ADDRESSES } from '../api/mockData';
+
+const emptyUser: User = {
+  id: '',
+  name: '',
+  fullName: '',
+  email: '',
+  phone: '',
+  companyName: '',
+  gstin: '',
+  pan: '',
+  businessType: 'Enterprise Buyer',
+  industry: '',
+  isGstVerified: false,
+  isApprovedBuyer: false,
+  creditLimit: 0,
+  creditAvailable: 0,
+  creditDays: 30,
+};
 
 interface AuthState {
   user: User;
@@ -22,18 +39,18 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
-  user: INITIAL_USER,
-  addresses: INITIAL_ADDRESSES,
+  user: emptyUser,
+  addresses: [],
   isLoading: false,
-  isAuthenticated: true,
+  isAuthenticated: Boolean(localStorage.getItem('hinchmart_auth_token')),
 
   fetchUser: async () => {
     set({ isLoading: true });
     try {
-      const user = await authApi.getMe();
+      const user = await authApi.getProfile();
       set({ user, isLoading: false, isAuthenticated: true });
     } catch (error) {
-      console.error('Failed to fetch user', error);
+      console.warn('Could not fetch user profile from backend:', error);
       set({ isLoading: false });
     }
   },
@@ -43,7 +60,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       const addresses = await addressApi.getAddresses();
       set({ addresses });
     } catch (error) {
-      console.error('Failed to fetch addresses', error);
+      console.warn('Could not fetch site addresses from backend:', error);
     }
   },
 
@@ -77,7 +94,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   logout: () => {
     authApi.logout();
-    set({ user: INITIAL_USER, isAuthenticated: false });
+    set({ user: emptyUser, isAuthenticated: false, addresses: [] });
   },
 
   updateUser: async (updates: Partial<User>) => {
@@ -100,7 +117,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   updateAddress: async (id: string, updates: Partial<Address>) => {
     const updated = await addressApi.updateAddress(id, updates);
     set((state) => ({
-      addresses: state.addresses.map((a) => (a.id === id ? updated : a)),
+      addresses: state.addresses.map((a) => (a.id === id || a.addressId === Number(id) ? updated : a)),
     }));
     return updated;
   },
@@ -108,7 +125,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   deleteAddress: async (id: string) => {
     await addressApi.deleteAddress(id);
     set((state) => ({
-      addresses: state.addresses.filter((a) => a.id !== id),
+      addresses: state.addresses.filter((a) => a.id !== id && a.addressId !== Number(id)),
     }));
   },
 }));

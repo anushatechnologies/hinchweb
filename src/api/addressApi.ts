@@ -1,74 +1,73 @@
-import { apiClient, getCurrentUserId } from '../services/apiClient';
-import { mockDb } from './mockDb';
-import type { Address } from '../types';
+import { apiClient } from '../services/apiClient';
+import type { Address, CreateAddressInput } from '../types';
 
 export function mapBackendAddress(raw: any): Address {
+  const id = String(raw.addressId || raw.id || '');
   return {
-    id: String(raw.id || `addr_${Date.now()}`),
-    contactName: raw.contactName || raw.contactPerson || 'Rajesh Sharma',
-    mobile: raw.mobile || raw.phone || '9876543210',
-    companyName: raw.companyName || 'Apex Infra Projects Pvt Ltd',
-    gstin: raw.gstin || '27AAAAA0000A1Z5',
-    addressLine1: raw.addressLine1 || raw.address || 'Plot 45, MIDC Industrial Area, Phase 2',
+    id,
+    addressId: Number(raw.addressId || raw.id || 0),
+    siteName: raw.siteName || raw.title || '',
+    recipientName: raw.recipientName || raw.contactName || '',
+    contactName: raw.recipientName || raw.contactName || '',
+    mobile: raw.mobile || raw.phone || '',
+    phone: raw.mobile || raw.phone || '',
+    companyName: raw.companyName || '',
+    gstin: raw.gstin || '',
+    addressLine1: raw.addressLine1 || '',
     addressLine2: raw.addressLine2,
     landmark: raw.landmark,
-    city: raw.city || 'Pune',
-    state: raw.state || 'Maharashtra',
-    pincode: raw.pincode || '411057',
-    addressType: (raw.addressType || 'Site / Project') as any,
+    city: raw.city || '',
+    state: raw.state || '',
+    pincode: raw.pincode || '',
+    addressType: raw.addressType || 'Site / Project',
     isDefaultDelivery: Boolean(raw.isDefaultDelivery),
     isDefaultBilling: Boolean(raw.isDefaultBilling),
+    hasHeavyVehicleAccess: Boolean(raw.hasHeavyVehicleAccess ?? true),
+    createdAt: raw.createdAt,
   };
 }
 
 export const addressApi = {
+  // 7.1 Get User Addresses
   async getAddresses(): Promise<Address[]> {
-    const userId = getCurrentUserId();
     try {
-      const res = await apiClient.get('/buyer/addresses', { params: { userId } });
+      const res = await apiClient.get('/user/addresses');
       if (res.data?.success && Array.isArray(res.data?.data)) {
         return res.data.data.map(mapBackendAddress);
       }
-    } catch {
-      // fallback
-    }
-    return mockDb.getAddresses();
-  },
-
-  async addAddress(addr: Omit<Address, 'id'>): Promise<Address> {
-    const userId = getCurrentUserId();
-    try {
-      const res = await apiClient.post(`/buyer/addresses?userId=${userId}`, addr);
-      if (res.data?.success && res.data?.data) {
-        return mapBackendAddress(res.data.data);
+      if (Array.isArray(res.data)) {
+        return res.data.map(mapBackendAddress);
       }
-    } catch {
-      // fallback
+    } catch (err) {
+      console.warn('Backend GET /user/addresses error:', err);
     }
-    return mockDb.addAddress(addr);
+    return [];
   },
 
-  async updateAddress(id: string, updates: Partial<Address>): Promise<Address> {
-    const userId = getCurrentUserId();
-    try {
-      const res = await apiClient.put(`/buyer/addresses/${id}?userId=${userId}`, updates);
-      if (res.data?.success && res.data?.data) {
-        return mapBackendAddress(res.data.data);
-      }
-    } catch {
-      // fallback
+  // 7.2 Add New Delivery Site Address
+  async addAddress(payload: CreateAddressInput): Promise<Address> {
+    const res = await apiClient.post('/user/addresses', payload);
+    if (res.data?.success && res.data?.data) {
+      return mapBackendAddress(res.data.data);
     }
-    return mockDb.updateAddress(id, updates);
+    if (res.data?.addressId || res.data?.id) {
+      return mapBackendAddress(res.data);
+    }
+    throw new Error(res.data?.message || 'Failed to add address');
   },
 
-  async deleteAddress(id: string): Promise<void> {
-    const userId = getCurrentUserId();
-    try {
-      await apiClient.delete(`/buyer/addresses/${id}?userId=${userId}`);
-      return;
-    } catch {
-      // fallback
+  // 7.3 Update Delivery Site Address
+  async updateAddress(id: number | string, payload: Partial<CreateAddressInput>): Promise<Address> {
+    const res = await apiClient.put(`/user/addresses/${id}`, payload);
+    if (res.data?.success && res.data?.data) {
+      return mapBackendAddress(res.data.data);
     }
-    return mockDb.deleteAddress(id);
+    throw new Error(res.data?.message || 'Failed to update address');
+  },
+
+  // 7.4 Delete Delivery Site Address
+  async deleteAddress(id: number | string): Promise<boolean> {
+    const res = await apiClient.delete(`/user/addresses/${id}`);
+    return res.data?.success ?? true;
   },
 };
