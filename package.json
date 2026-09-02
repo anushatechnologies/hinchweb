@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:express": "vite --config vite.express.config.ts --port 5176 --host",
     "build": "tsc -b && vite build",
+    "build:express": "vite build --config vite.express.config.ts",
     "lint": "oxlint",
     "preview": "vite preview"
   },

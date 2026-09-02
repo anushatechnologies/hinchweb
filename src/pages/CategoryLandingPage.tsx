@@ -5,6 +5,7 @@ import { productApi } from '../api/productApi';
 import type { Category, Subcategory, Product } from '../types';
 import { ProductCard } from '../components/product/ProductCard';
 import { CategoryRibbon } from '../components/layout/CategoryRibbon';
+import { CategoryPageSkeleton } from '../components/common/SkeletonLoaders';
 import { useRFQModalStore } from '../store/useRFQModalStore';
 import { getCategoryImageUrl } from './HomePage';
 import {
@@ -74,9 +75,12 @@ export const CategoryLandingPage: React.FC = () => {
             uniqueSubNames.add(p.subcategory.toLowerCase());
             allSubs.push({
               id: `sub_${p.subcategory}`,
+              subcategoryId: typeof p.subcategoryId === 'number' ? p.subcategoryId : 0,
+              categoryId: cat.categoryId,
               name: p.subcategory,
               slug: p.subcategory.toLowerCase().replace(/\s+/g, '-'),
-              categoryId: cat.categoryId,
+              active: true,
+              sortOrder: 1,
               productCount: 1,
             });
           }
@@ -133,20 +137,7 @@ export const CategoryLandingPage: React.FC = () => {
   };
 
   if (isLoading) {
-    return (
-      <div className="max-w-[1720px] w-full mx-auto px-4 sm:px-8 lg:px-12 py-8 space-y-8 animate-pulse">
-        <div className="h-4 bg-industrial-200 rounded w-48" />
-        <div className="h-44 bg-industrial-900/10 rounded-3xl" />
-        <div className="space-y-4">
-          <div className="h-6 bg-industrial-200 rounded w-60" />
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className="h-40 bg-industrial-100 rounded-2xl" />
-            ))}
-          </div>
-        </div>
-      </div>
-    );
+    return <CategoryPageSkeleton />;
   }
 
   if (!category) {
@@ -281,7 +272,7 @@ export const CategoryLandingPage: React.FC = () => {
                 return (
                   <Link
                     key={sub.id || sub.name}
-                    to={`/catalog?category=${encodeURIComponent(category.name)}&subcategory=${encodeURIComponent(sub.name)}`}
+                    to={`/category/${encodeURIComponent(category.slug || category.name.toLowerCase().replace(/\s+/g, '-'))}/${encodeURIComponent(sub.slug || sub.name.toLowerCase().replace(/\s+/g, '-'))}`}
                     className="group bg-white rounded-2xl border border-industrial-200 hover:border-brand-500 hover:shadow-card p-3 flex flex-col items-center text-center transition-all cursor-pointer space-y-2.5"
                   >
                     <div className="w-full aspect-square rounded-xl bg-industrial-50 border border-industrial-100 overflow-hidden flex items-center justify-center p-1 group-hover:border-brand-300 transition-colors">
@@ -337,7 +328,7 @@ export const CategoryLandingPage: React.FC = () => {
                 </div>
 
                 <Link
-                  to={`/catalog?category=${encodeURIComponent(category.name)}&subcategory=${encodeURIComponent(subcategory.name)}`}
+                  to={`/category/${encodeURIComponent(category.slug || category.name.toLowerCase().replace(/\s+/g, '-'))}/${encodeURIComponent(subcategory.slug || subcategory.name.toLowerCase().replace(/\s+/g, '-'))}`}
                   className="inline-flex items-center gap-1.5 px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-sm transition-all active:scale-95 cursor-pointer"
                 >
                   <span>VIEW ALL</span>

@@ -5,6 +5,7 @@ import type { Product } from '../types';
 import { BulkPricingTable } from '../components/product/BulkPricingTable';
 import { SellerCard } from '../components/product/SellerCard';
 import { ProductCard } from '../components/product/ProductCard';
+import { ProductDetailSkeleton } from '../components/common/SkeletonLoaders';
 import { useCartStore } from '../store/useCartStore';
 import { useLocationStore } from '../store/useLocationStore';
 import { useRFQModalStore } from '../store/useRFQModalStore';
@@ -63,12 +64,7 @@ export const ProductDetailPage: React.FC = () => {
   }, [id]);
 
   if (isLoading) {
-    return (
-      <div className="max-w-7xl mx-auto px-4 py-16 text-center space-y-4">
-        <div className="w-12 h-12 border-4 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-        <p className="text-xs font-semibold text-industrial-500">Loading verified product details...</p>
-      </div>
-    );
+    return <ProductDetailSkeleton />;
   }
 
   if (!product) {
@@ -108,18 +104,47 @@ export const ProductDetailPage: React.FC = () => {
 
   return (
     <div className="max-w-[1720px] w-full mx-auto px-4 sm:px-8 lg:px-12 py-8 space-y-12">
-      {/* 1. Breadcrumb */}
-      <div className="flex items-center gap-2 text-xs text-industrial-500">
-        <Link to="/" className="hover:text-industrial-900">Home</Link>
-        <span>/</span>
-        <Link to="/catalog" className="hover:text-industrial-900">Catalog</Link>
-        <span>/</span>
-        <Link to={`/catalog?category=${encodeURIComponent(product.category)}`} className="hover:text-industrial-900">
-          {product.category}
+      {/* 1. Dynamic 4-Tier Breadcrumb (Flow 5) */}
+      <nav aria-label="Breadcrumb" className="flex items-center flex-wrap gap-2 text-xs text-industrial-500 font-medium">
+        <Link to="/" className="hover:text-brand-600 transition-colors">
+          Home
         </Link>
-        <span>/</span>
-        <span className="font-semibold text-industrial-800 truncate max-w-xs">{product.title}</span>
-      </div>
+        <ChevronRight className="w-3.5 h-3.5 text-industrial-300 shrink-0" />
+        {product.category && (
+          <>
+            <Link
+              to={`/category/${encodeURIComponent((product.categoryName || product.category).toLowerCase().replace(/\s+/g, '-'))}`}
+              className="hover:text-brand-600 transition-colors"
+            >
+              {product.categoryName || product.category}
+            </Link>
+            <ChevronRight className="w-3.5 h-3.5 text-industrial-300 shrink-0" />
+          </>
+        )}
+        {product.subcategory && (
+          <>
+            <Link
+              to={`/catalog?subcategoryId=${product.subcategoryId || ''}&category=${encodeURIComponent(product.categoryName || product.category || '')}`}
+              className="hover:text-brand-600 transition-colors"
+            >
+              {product.subcategoryName || product.subcategory}
+            </Link>
+            <ChevronRight className="w-3.5 h-3.5 text-industrial-300 shrink-0" />
+          </>
+        )}
+        {product.brand && (
+          <>
+            <Link
+              to={`/catalog?brand=${encodeURIComponent(product.brandName || product.brand)}`}
+              className="hover:text-brand-600 transition-colors font-semibold text-industrial-700"
+            >
+              {product.brandName || product.brand}
+            </Link>
+            <ChevronRight className="w-3.5 h-3.5 text-industrial-300 shrink-0" />
+          </>
+        )}
+        <span className="font-bold text-industrial-900 truncate max-w-xs">{product.title}</span>
+      </nav>
 
       {/* 2. Main Product Info Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -380,10 +405,10 @@ export const ProductDetailPage: React.FC = () => {
               Related Materials & Cross-Category Supplies
             </h3>
             <Link
-              to={`/catalog?category=${encodeURIComponent(product.category)}`}
+              to={`/catalog?category=${encodeURIComponent(product.categoryName || product.category || '')}`}
               className="text-xs font-bold text-brand-600 hover:text-brand-700 flex items-center gap-1"
             >
-              <span>View More in {product.category}</span>
+              <span>View More in {product.categoryName || product.category}</span>
               <ChevronRight className="w-4 h-4" />
             </Link>
           </div>

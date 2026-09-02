@@ -5,6 +5,7 @@ import type {
   CreateProductInput,
   BulkPriceTier,
   ProductSpecification,
+  SearchSuggestionItem,
 } from '../types';
 
 export function mapBackendProductToFrontend(raw: any): Product {
@@ -75,13 +76,17 @@ export function mapBackendProductToFrontend(raw: any): Product {
   return {
     id,
     productId: Number(raw.productId || raw.id || 0),
+    brandId: raw.brandId ? Number(raw.brandId) : undefined,
+    brand: raw.brand || raw.brandName || '',
+    brandName: raw.brandName || raw.brand || '',
     slug: raw.slug || `product-${id}`,
     sku: raw.sku || `SKU-${id}`,
     title: raw.title || raw.productName || '',
-    brand: raw.brand || raw.brandName || '',
     category: raw.category || raw.categoryName || '',
+    categoryName: raw.categoryName || raw.category || '',
     categoryId: raw.categoryId || 0,
     subcategory: raw.subcategory || raw.subcategoryName || '',
+    subcategoryName: raw.subcategoryName || raw.subcategory || '',
     subcategoryId: raw.subcategoryId || 0,
     description: raw.description || '',
     images: images.filter(Boolean),
@@ -108,14 +113,15 @@ export function mapBackendProductToFrontend(raw: any): Product {
     specifications,
     isFeatured: Boolean(raw.isFeatured ?? true),
     isBulkDeal: bulkPricing.length > 0,
-    approvalStatus: raw.approvalStatus || 'APPROVED',
+    status: raw.status || raw.approvalStatus || 'APPROVED',
+    approvalStatus: raw.approvalStatus || raw.status || 'APPROVED',
     rejectionReason: raw.rejectionReason,
     createdAt: raw.createdAt,
   };
 }
 
 export const productApi = {
-  // 3.1 Search & Filter Products (Paginated)
+  // Flow 3: Search & Filter Products (Hierarchical Multi-Level Filter)
   async getProducts(filters?: ProductFilters): Promise<{
     products: Product[];
     total: number;
@@ -128,6 +134,7 @@ export const productApi = {
 
     if (filters?.categoryId) params.categoryId = filters.categoryId;
     if (filters?.subcategoryId) params.subcategoryId = filters.subcategoryId;
+    if (filters?.brandId) params.brandId = filters.brandId;
     if (filters?.search) params.search = filters.search;
     if (filters?.minPrice !== undefined) params.minPrice = filters.minPrice;
     if (filters?.maxPrice !== undefined) params.maxPrice = filters.maxPrice;
@@ -135,7 +142,8 @@ export const productApi = {
       params.brand = Array.isArray(filters.brand) ? filters.brand.join(',') : filters.brand;
     }
     if (filters?.is24HourDelivery !== undefined) params.is24HourDelivery = filters.is24HourDelivery;
-    if (filters?.sort) params.sort = filters.sort;
+    if (filters?.sortBy) params.sortBy = filters.sortBy;
+    else if (filters?.sort) params.sort = filters.sort;
 
     try {
       const res = await apiClient.get('/products', { params });
@@ -178,7 +186,29 @@ export const productApi = {
     };
   },
 
-  // 3.2 Get Product Details By ID
+  // Flow 4: Search Bar with Autocomplete Suggestions
+  async getSearchSuggestions(query: string): Promise<SearchSuggestionItem[]> {
+    if (!query || !query.trim()) return [];
+    try {
+      const res = await apiClient.get('/products/search-suggestions', {
+        params: { query: query.trim() },
+      });
+      if (res.data?.success && Array.isArray(res.data?.data)) {
+        return res.data.data.map((item: any) => ({
+          type: item.type || 'PRODUCT',
+          id: item.id || item.productId || item.brandId || item.categoryId || 0,
+          title: item.title || item.name || '',
+          subtitle: item.subtitle || '',
+          link: item.link || (item.type === 'BRAND' ? `/catalog?brand=${encodeURIComponent(item.title)}` : `/product/${item.id}`),
+        }));
+      }
+    } catch (err) {
+      console.warn('Backend GET /products/search-suggestions warning:', err);
+    }
+    return [];
+  },
+
+  // Get Product Details By ID or Slug
   async getProductById(idOrSlug: string | number): Promise<Product> {
     const res = await apiClient.get(`/products/${idOrSlug}`);
     if (res.data?.success && res.data?.data) {
@@ -190,7 +220,24 @@ export const productApi = {
     throw new Error(`Product ${idOrSlug} not found`);
   },
 
-  // 3.3 Create Product
+  // Get Product By Slug
+  async getProductBySlug(slug: string): Promise<Product | null> {
+    if (!slug) return null;
+    try {
+      const product = await this.getProductById(slug);
+      if (product) return product;
+    } catch {
+      // fallback to searching by slug
+    }
+
+    const { products } = await this.getProducts({ search: slug, limit: 10 });
+    const match = products.find(
+      (p) => p.slug.toLowerCase() === slug.toLowerCase() || String(p.productId) === slug || p.id === slug
+    );
+    return match || null;
+  },
+
+  // Flow 6: Create Product (Admin / Vendor)
   async createProduct(payload: CreateProductInput): Promise<Product> {
     const res = await apiClient.post('/products', payload);
     if (res.data?.success && res.data?.data) {
@@ -199,7 +246,7 @@ export const productApi = {
     throw new Error(res.data?.message || 'Failed to create product');
   },
 
-  // 3.4 Update Product
+  // Update Product
   async updateProduct(id: number | string, payload: Partial<CreateProductInput>): Promise<Product> {
     const res = await apiClient.put(`/products/${id}`, payload);
     if (res.data?.success && res.data?.data) {
@@ -208,25 +255,25 @@ export const productApi = {
     throw new Error(res.data?.message || 'Failed to update product');
   },
 
-  // 3.4 Delete Product
+  // Delete Product
   async deleteProduct(id: number | string): Promise<boolean> {
     const res = await apiClient.delete(`/products/${id}`);
     return res.data?.success ?? true;
   },
 
-  // 3.4 Activate Product
+  // Activate Product
   async activateProduct(id: number | string): Promise<boolean> {
     const res = await apiClient.patch(`/products/${id}/activate`);
     return res.data?.success ?? true;
   },
 
-  // 3.4 Deactivate Product
+  // Deactivate Product
   async deactivateProduct(id: number | string): Promise<boolean> {
     const res = await apiClient.patch(`/products/${id}/deactivate`);
     return res.data?.success ?? true;
   },
 
-  // 4. Admin Product Approval APIs
+  // Admin Product Approval APIs
   async getAdminProducts(): Promise<Product[]> {
     const res = await apiClient.get('/admin/products');
     if (res.data?.success && Array.isArray(res.data?.data)) {

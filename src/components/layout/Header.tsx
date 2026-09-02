@@ -18,22 +18,24 @@ import {
   Bell,
   ShoppingCart,
   ChevronDown,
-  Building2,
-  ShieldCheck,
   Package,
-  LogIn,
   Truck,
   Sparkles,
   User,
   Tag,
   Layers,
+  Heart,
+  Briefcase,
+  ClipboardList,
+  LogOut,
 } from 'lucide-react';
 
 export const Header: React.FC = () => {
   const navigate = useNavigate();
 
   const { cart, openCart } = useCartStore();
-  const { user } = useAuthStore();
+  const { user, isAuthenticated, logout } = useAuthStore();
+  const isUserLoggedIn = Boolean(isAuthenticated && (user.id || user.phone || user.email));
   const { pincode, city, openPincodeModal } = useLocationStore();
   const { openRFQModal } = useRFQModalStore();
   const { openChatWithSeller } = useChatStore();
@@ -380,103 +382,160 @@ export const Header: React.FC = () => {
             )}
           </div>
 
-          {/* User Account / Login */}
-          {user ? (
-            <div className="relative" ref={userMenuRef}>
+          {/* User Account / Login Dropdown (Moglix Reference Style) */}
+          <div className="relative" ref={userMenuRef}>
+            {isUserLoggedIn ? (
               <button
                 onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-industrial-100 transition-colors text-left cursor-pointer"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-industrial-100 hover:bg-industrial-200 text-industrial-900 font-bold text-xs transition-all cursor-pointer shadow-2xs"
               >
-                <div className="w-8 h-8 rounded-full bg-industrial-900 text-white font-black text-xs flex items-center justify-center">
-                  {(user.companyName || user.name || 'H').charAt(0)}
+                <div className="w-6 h-6 rounded-full bg-[#d9232d] text-white font-black text-[10px] flex items-center justify-center">
+                  {(user.companyName || user.fullName || user.name || 'U').charAt(0).toUpperCase()}
                 </div>
-                <div className="hidden sm:block">
-                  <div className="text-xs font-bold text-industrial-900 leading-tight">
-                    {(user.fullName || user.name || 'User').split(' ')[0]}
-                  </div>
-                  <div className="text-[10px] text-industrial-500">Enterprise Buyer</div>
-                </div>
-                <ChevronDown className="w-3.5 h-3.5 text-industrial-400" />
+                <span className="truncate max-w-[100px]">
+                  {(user.fullName || user.name || user.companyName || 'User').split(' ')[0]}
+                </span>
+                <ChevronDown className="w-3.5 h-3.5 text-industrial-500" />
               </button>
+            ) : (
+              <button
+                onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-industrial-100/90 hover:bg-industrial-200 text-industrial-800 font-bold text-xs transition-all cursor-pointer shadow-2xs"
+              >
+                <div className="w-5 h-5 rounded-full bg-industrial-200 text-industrial-700 flex items-center justify-center">
+                  <User className="w-3.5 h-3.5" />
+                </div>
+                <span>Login Now</span>
+              </button>
+            )}
 
-              {isUserMenuOpen && (
-                <>
-                  <div
-                    className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-40 sm:hidden"
-                    onClick={() => setIsUserMenuOpen(false)}
-                  />
+            {isUserMenuOpen && (
+              <>
+                <div
+                  className="fixed inset-0 bg-black/20 backdrop-blur-2xs z-40 sm:hidden"
+                  onClick={() => setIsUserMenuOpen(false)}
+                />
 
-                  <div className="fixed sm:absolute left-3 right-3 sm:left-auto sm:right-0 top-16 sm:top-full mt-2 sm:w-64 max-w-[calc(100vw-24px)] bg-white rounded-2xl shadow-2xl border border-industrial-200 py-2 z-50 animate-in fade-in zoom-in-95 text-xs text-industrial-800">
-                    <div className="px-4 py-2 border-b border-industrial-100 flex items-center justify-between">
-                      <div>
-                        <div className="font-bold text-industrial-950">{user.companyName || 'Apex Infra'}</div>
-                        <div className="text-[11px] text-industrial-500">GSTIN: {user.gstin}</div>
+                <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-industrial-100 py-3 z-50 animate-in fade-in zoom-in-95 text-xs">
+                  {/* Upward Triangle Pointer */}
+                  <div className="w-3 h-3 bg-white border-t border-l border-industrial-200 rotate-45 absolute -top-1.5 right-6" />
+
+                  {/* Header Row: New Customer? Sign-Up OR Logged in User */}
+                  {isUserLoggedIn ? (
+                    <div className="px-4 pb-2.5 border-b border-industrial-100">
+                      <div className="font-extrabold text-sm text-industrial-950 truncate">
+                        {user.companyName || user.fullName || user.name || 'Enterprise Buyer'}
                       </div>
+                      <div className="text-[10px] text-industrial-500 truncate">
+                        {user.gstin ? `GSTIN: ${user.gstin}` : user.email || user.phone || 'Verified Account'}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="px-4 pb-2.5 flex items-center justify-between font-bold border-b border-industrial-100">
+                      <span className="text-industrial-600">New Customer?</span>
                       <button
-                        onClick={() => setIsUserMenuOpen(false)}
-                        className="sm:hidden text-industrial-400 hover:text-industrial-700 text-xs px-1 py-0.5"
-                        aria-label="Close menu"
+                        onClick={() => {
+                          setIsUserMenuOpen(false);
+                          openAuthModal();
+                        }}
+                        className="text-[#d9232d] hover:underline font-black cursor-pointer"
                       >
-                        ?
+                        Sign-Up
                       </button>
                     </div>
+                  )}
 
-                    <Link
-                      to="/account"
-                      onClick={() => setIsUserMenuOpen(false)}
-                      className="flex items-center gap-2.5 px-4 py-2 hover:bg-industrial-50 font-medium"
+                  {/* Moglix Exact Menu Items */}
+                  <div className="py-1 space-y-0.5 font-semibold text-industrial-700">
+                    <button
+                      onClick={() => {
+                        setIsUserMenuOpen(false);
+                        if (!isUserLoggedIn) openAuthModal();
+                        else navigate('/account');
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2 hover:bg-industrial-50 hover:text-[#d9232d] transition-colors text-left cursor-pointer"
                     >
-                      <Building2 className="w-4 h-4 text-industrial-400" />
-                      Enterprise Account & Credit
-                    </Link>
-                    <Link
-                      to="/orders"
-                      onClick={() => setIsUserMenuOpen(false)}
-                      className="flex items-center gap-2.5 px-4 py-2 hover:bg-industrial-50 font-medium"
-                    >
-                      <Package className="w-4 h-4 text-industrial-400" />
-                      Purchase Orders & Tracking
-                    </Link>
-                    <Link
-                      to="/rfq"
-                      onClick={() => setIsUserMenuOpen(false)}
-                      className="flex items-center gap-2.5 px-4 py-2 hover:bg-industrial-50 font-medium"
-                    >
-                      <FileText className="w-4 h-4 text-industrial-400" />
-                      My RFQs & Quotations
-                    </Link>
-                    <Link
-                      to="/invoices"
-                      onClick={() => setIsUserMenuOpen(false)}
-                      className="flex items-center gap-2.5 px-4 py-2 hover:bg-industrial-50 font-medium"
-                    >
-                      <ShieldCheck className="w-4 h-4 text-industrial-400" />
-                      GST Tax Invoices
-                    </Link>
+                      <User className="w-4 h-4 text-industrial-500" />
+                      <span>My Profile</span>
+                    </button>
 
                     <button
                       onClick={() => {
                         setIsUserMenuOpen(false);
-                        openAuthModal();
+                        if (!isUserLoggedIn) openAuthModal();
+                        else navigate('/orders');
                       }}
-                      className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-brand-50 text-brand-600 font-bold border-t border-industrial-100 text-left cursor-pointer transition-colors"
+                      className="w-full flex items-center gap-3 px-4 py-2 hover:bg-industrial-50 hover:text-[#d9232d] transition-colors text-left cursor-pointer"
                     >
-                      <LogIn className="w-4 h-4 text-brand-600" />
-                      <span>Switch / OTP Login</span>
+                      <ClipboardList className="w-4 h-4 text-industrial-500" />
+                      <span>My Orders</span>
                     </button>
+
+                    <button
+                      onClick={() => {
+                        setIsUserMenuOpen(false);
+                        if (!isUserLoggedIn) openAuthModal();
+                        else navigate('/rfq');
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2 hover:bg-industrial-50 hover:text-[#d9232d] transition-colors text-left cursor-pointer"
+                    >
+                      <Package className="w-4 h-4 text-industrial-500" />
+                      <span>My RFQ's</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setIsUserMenuOpen(false);
+                        if (!isUserLoggedIn) openAuthModal();
+                        else navigate('/account');
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2 hover:bg-industrial-50 hover:text-[#d9232d] transition-colors text-left cursor-pointer"
+                    >
+                      <Briefcase className="w-4 h-4 text-industrial-500" />
+                      <span>My Business Details</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setIsUserMenuOpen(false);
+                        if (!isUserLoggedIn) openAuthModal();
+                        else navigate('/wishlist');
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2 hover:bg-industrial-50 hover:text-[#d9232d] transition-colors text-left cursor-pointer"
+                    >
+                      <Heart className="w-4 h-4 text-industrial-500" />
+                      <span>My WishList</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setIsUserMenuOpen(false);
+                        if (!isUserLoggedIn) openAuthModal();
+                        else navigate('/account');
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2 hover:bg-industrial-50 hover:text-[#d9232d] transition-colors text-left cursor-pointer"
+                    >
+                      <MapPin className="w-4 h-4 text-industrial-500" />
+                      <span>My Address</span>
+                    </button>
+
+                    {isUserLoggedIn && (
+                      <button
+                        onClick={() => {
+                          setIsUserMenuOpen(false);
+                          logout();
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2 hover:bg-red-50 text-red-600 font-bold border-t border-industrial-100 transition-colors text-left cursor-pointer mt-1"
+                      >
+                        <LogOut className="w-4 h-4 text-red-600" />
+                        <span>Logout</span>
+                      </button>
+                    )}
                   </div>
-                </>
-              )}
-            </div>
-          ) : (
-            <button
-              onClick={openAuthModal}
-              className="flex items-center gap-1.5 text-xs font-bold text-industrial-800 hover:text-red-600 transition-colors cursor-pointer"
-            >
-              <User className="w-4 h-4 text-industrial-600" />
-              <span>Login Now</span>
-            </button>
-          )}
+                </div>
+              </>
+            )}
+          </div>
 
           {/* Cart Icon with count */}
           <button

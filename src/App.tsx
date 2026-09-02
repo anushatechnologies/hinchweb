@@ -11,6 +11,7 @@ import { ToastContainer } from './components/common/ToastContainer';
 
 import { HomePage } from './pages/HomePage';
 import { CategoryLandingPage } from './pages/CategoryLandingPage';
+import { SubcategoryLandingPage } from './pages/SubcategoryLandingPage';
 import { CatalogPage } from './pages/CatalogPage';
 import { ProductDetailPage } from './pages/ProductDetailPage';
 import { CartPage } from './pages/CartPage';
@@ -65,6 +66,8 @@ function App() {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/category/:categorySlug" element={<CategoryLandingPage />} />
+            <Route path="/category/:categorySlug/:subcategorySlug" element={<SubcategoryLandingPage />} />
+            <Route path="/subcategory/:subcategorySlug" element={<SubcategoryLandingPage />} />
             <Route path="/catalog" element={<CatalogPage />} />
             <Route path="/product/:id" element={<ProductDetailPage />} />
             <Route path="/cart" element={<CartPage />} />

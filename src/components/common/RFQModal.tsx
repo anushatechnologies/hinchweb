@@ -69,14 +69,14 @@ export const RFQModal: React.FC = () => {
 
   useEffect(() => {
     if (prefilledProduct) {
-      setProductName(prefilledProduct.title);
-      setCategory(prefilledProduct.category);
-      setBrandPreference(prefilledProduct.brand);
-      setUnit(prefilledProduct.unit);
-      setQuantity(prefilledProduct.moq * 2);
-      setTargetPrice(prefilledProduct.price.toString());
+      setProductName(prefilledProduct.title || '');
+      setCategory(prefilledProduct.categoryName || prefilledProduct.category || '');
+      setBrandPreference(prefilledProduct.brandName || prefilledProduct.brand || 'Any Verified Primary Brand');
+      setUnit(prefilledProduct.unit || 'Piece');
+      setQuantity((prefilledProduct.moq || 1) * 2);
+      setTargetPrice(prefilledProduct.price ? prefilledProduct.price.toString() : '');
       setSpecifications(
-        `Required Grade / Standard as per ${prefilledProduct.title}. Brand: ${prefilledProduct.brand}.`
+        `Required Grade / Standard as per ${prefilledProduct.title}. Brand: ${prefilledProduct.brandName || prefilledProduct.brand || 'Primary'}.`
       );
     } else {
       setProductName('');

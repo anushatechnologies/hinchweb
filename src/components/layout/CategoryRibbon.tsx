@@ -175,10 +175,13 @@ export const CategoryRibbon: React.FC<CategoryRibbonProps> = ({ activeSlug, acti
             })
           )}
 
-          {/* 3. Hinch Express (Right item with NEW badge) */}
-          <Link
-            to="/catalog?deals=true"
+          {/* 3. Hinch Express (Opens Standalone Logistics Website in NEW TAB) */}
+          <a
+            href={import.meta.env.VITE_HINCH_EXPRESS_URL || 'http://localhost:5176'}
+            target="_blank"
+            rel="noopener noreferrer"
             className="flex flex-col items-center justify-between shrink-0 group min-w-[76px] sm:min-w-[88px] text-center pt-2 pb-2.5 relative transition-transform hover:-translate-y-0.5 cursor-pointer"
+            title="Open Hinch Express Logistics in New Tab"
           >
             <div className="relative w-11 h-11 flex items-center justify-center">
               <span className="absolute -top-1 -right-1 bg-[#f59e0b] text-white text-[8px] font-black px-1.5 py-0.2 rounded-full uppercase tracking-wider shadow-2xs leading-tight z-10">
@@ -193,16 +196,10 @@ export const CategoryRibbon: React.FC<CategoryRibbonProps> = ({ activeSlug, acti
                 <circle cx="13" cy="33" r="2" fill="#dc2626"/>
               </svg>
             </div>
-            <span className={`text-[11px] sm:text-[12px] group-hover:text-[#dc2626] transition-colors leading-tight text-center mt-1.5 font-bold ${
-              isDealsActive ? 'text-[#dc2626]' : 'text-industrial-900'
-            }`}>
+            <span className="text-[11px] sm:text-[12px] group-hover:text-[#dc2626] transition-colors leading-tight text-center mt-1.5 font-bold text-industrial-900">
               Hinch<br />Express
             </span>
-
-            {isDealsActive && (
-              <div className="absolute -bottom-0 left-0 right-0 h-[3px] bg-[#dc2626] rounded-t-full shadow-2xs" />
-            )}
-          </Link>
+          </a>
         </div>
       </div>
     </nav>

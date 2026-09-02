@@ -50,17 +50,59 @@ export interface Vendor {
   rating: number;
 }
 
+export interface ApiResponse<T> {
+  success: boolean;
+  statusCode?: number;
+  message?: string;
+  data: T;
+  timestamp?: string;
+}
+
+export interface PaginatedResponse<T> {
+  success: boolean;
+  data: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    totalCount: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPrevPage: boolean;
+  };
+  timestamp?: string;
+}
+
+export interface BulkPricingTier {
+  tierId?: number;
+  minQty: number;
+  maxQty?: number | null;
+  price: number;
+  discountPercentage?: number;
+}
+
+export interface VendorInfo {
+  vendorId: number;
+  companyName: string;
+  city: string;
+  isVerified: boolean;
+  rating: number;
+}
+
 export interface Product {
   id: string;
-  productId?: number;
-  slug: string;
-  title: string;
-  sku?: string;
+  productId: number;
+  brandId?: number;
   brand: string;
-  category: string;
-  categoryId: string | number;
-  subcategory: string;
-  subcategoryId: string | number;
+  brandName?: string;
+  subcategoryId: number | string;
+  subcategory?: string;
+  subcategoryName?: string;
+  categoryId: number | string;
+  category?: string;
+  categoryName?: string;
+  title: string;
+  slug: string;
+  sku?: string;
   description: string;
   images: string[];
   imageUrl?: string;
@@ -71,14 +113,17 @@ export interface Product {
   stock: number;
   stockQty?: number;
   gstRate: number;
-  hsnCode: string;
+  hsnCode?: string;
   bulkPricing: BulkPriceTier[];
   bulkPricingTiers?: BulkPriceTier[];
   rating: number;
-  ratingCount: number;
+  ratingCount?: number;
   reviewCount?: number;
   active?: boolean;
   is24HourDelivery?: boolean;
+  status?: 'APPROVED' | 'PENDING' | 'REJECTED' | string;
+  approvalStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | string;
+  rejectionReason?: string;
   seller: Seller;
   vendor?: Vendor;
   specifications: ProductSpecification[];
@@ -86,51 +131,54 @@ export interface Product {
   isBulkDeal?: boolean;
   tags?: string[];
   industries?: string[];
-  deliveryDays: number;
-  deliveryCharge: number;
+  deliveryDays?: number;
+  deliveryCharge?: number;
   freeDeliveryAbove?: number;
-  approvalStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | string;
-  rejectionReason?: string;
   createdAt?: string;
 }
 
 export interface CreateProductInput {
+  brandId?: number;
   categoryId: number;
   subcategoryId: number;
   title: string;
-  brand: string;
+  sku?: string;
+  brand?: string;
   price: number;
   mrp?: number;
   unit: string;
   moq: number;
   stockQty: number;
   description: string;
-  imageUrl: string;
+  imageUrl?: string;
   images?: string[];
   active?: boolean;
   is24HourDelivery?: boolean;
   gstRate: number;
-  hsnCode: string;
+  hsnCode?: string;
   specifications?: Record<string, string> | ProductSpecification[];
   bulkPricingTiers?: {
     minQty: number;
-    maxQty: number;
+    maxQty?: number | null;
     price: number;
-    discountPercentage: number;
+    discountPercentage?: number;
   }[];
 }
 
 export interface Subcategory {
   id: string;
-  subcategoryId?: number;
-  categoryId?: number;
+  subcategoryId: number;
+  categoryId: number;
+  categoryName?: string;
   name: string;
   slug: string;
   imageUrl?: string;
-  active?: boolean;
-  sortOrder?: number;
-  productCount?: number;
+  image?: string;
+  active: boolean;
+  sortOrder: number;
+  productCount: number;
   itemCount?: number;
+  brands?: Brand[];
   createdAt?: string;
 }
 
@@ -145,16 +193,16 @@ export interface CreateSubcategoryInput {
 
 export interface Category {
   id: string;
-  categoryId?: number;
+  categoryId: number;
   name: string;
   slug: string;
   iconName?: string;
   description?: string;
   imageUrl?: string;
   image?: string;
-  active?: boolean;
-  sortOrder?: number;
-  productCount?: number;
+  active: boolean;
+  sortOrder: number;
+  productCount: number;
   subcategories?: Subcategory[];
   createdAt?: string;
 }
@@ -171,15 +219,25 @@ export interface CreateCategoryInput {
 
 export interface Brand {
   id: string;
+  brandId: number;
+  subcategoryId?: number;
+  subcategoryName?: string;
+  categoryId?: number;
+  categoryName?: string;
   name: string;
+  slug: string;
+  imageUrl?: string;
   logo?: string;
-  category?: string;
+  sortOrder?: number;
   productCount: number;
+  active: boolean;
+  createdAt?: string;
 }
 
 export interface ProductFilters {
   categoryId?: number | string;
   subcategoryId?: number | string;
+  brandId?: number | string;
   category?: string;
   subcategory?: string;
   brand?: string | string[];
@@ -188,15 +246,25 @@ export interface ProductFilters {
   is24HourDelivery?: boolean;
   search?: string;
   sort?: string;
+  sortBy?: string;
   page?: number;
   limit?: number;
   active?: boolean;
+}
+
+export interface SearchSuggestionItem {
+  type: 'BRAND' | 'PRODUCT' | 'CATEGORY';
+  id: number | string;
+  title: string;
+  subtitle?: string;
+  link: string;
 }
 
 export interface SearchSuggestions {
   suggestions: string[];
   matchingCategories: string[];
   matchingBrands: string[];
+  structuredSuggestions?: SearchSuggestionItem[];
 }
 
 export interface Banner {

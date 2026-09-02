@@ -4,6 +4,8 @@ import { productApi } from '../api/productApi';
 import { categoryApi } from '../api/categoryApi';
 import type { Product, Category, Brand } from '../types';
 import { ProductCard } from '../components/product/ProductCard';
+import { ProductCardSkeleton } from '../components/common/SkeletonLoaders';
+import { SubcategoryLandingPage } from './SubcategoryLandingPage';
 import { useRFQModalStore } from '../store/useRFQModalStore';
 import {
   Filter,
@@ -26,12 +28,15 @@ export const CatalogPage: React.FC = () => {
 
   // Filters State from URL or defaults
   const categoryParam = searchParams.get('category') || '';
+  const categoryIdParam = searchParams.get('categoryId') || '';
   const subcategoryParam = searchParams.get('subcategory') || '';
+  const subcategoryIdParam = searchParams.get('subcategoryId') || '';
   const brandParam = searchParams.get('brand') || '';
+  const brandIdParam = searchParams.get('brandId') || '';
   const searchParam = searchParams.get('search') || '';
   const dealsParam = searchParams.get('deals') === 'true';
   const fastDeliveryParam = searchParams.get('fastDelivery') === 'true';
-  const sortParam = (searchParams.get('sort') as any) || 'popularity';
+  const sortParam = (searchParams.get('sort') as any) || (searchParams.get('sortBy') as any) || 'popularity';
 
   const [selectedCategories, setSelectedCategories] = useState<string[]>(
     categoryParam ? [categoryParam] : []
@@ -78,9 +83,13 @@ export const CatalogPage: React.FC = () => {
       .getProducts({
         search: searchParam || undefined,
         category: categoryParam || undefined,
+        categoryId: categoryIdParam ? Number(categoryIdParam) : undefined,
         subcategory: subcategoryParam || undefined,
+        subcategoryId: subcategoryIdParam ? Number(subcategoryIdParam) : undefined,
         brand: brandParam || undefined,
+        brandId: brandIdParam ? Number(brandIdParam) : undefined,
         is24HourDelivery: fastDeliveryParam ? true : undefined,
+        sortBy: sortMap[sortParam] || undefined,
         sort: sortMap[sortParam] || undefined,
         limit: 50,
       })
@@ -92,7 +101,7 @@ export const CatalogPage: React.FC = () => {
         console.error(err);
         setIsLoading(false);
       });
-  }, [searchParam, categoryParam, subcategoryParam, brandParam, fastDeliveryParam, sortParam]);
+  }, [searchParam, categoryParam, categoryIdParam, subcategoryParam, subcategoryIdParam, brandParam, brandIdParam, fastDeliveryParam, sortParam]);
 
   // Derived available subcategories for selected categories
   const availableSubcategories = useMemo(() => {
@@ -113,8 +122,9 @@ export const CatalogPage: React.FC = () => {
 
     // 2. From actual products if present
     products.forEach((p) => {
-      if (p.subcategory && !subcats.some((s) => s.name.toLowerCase() === p.subcategory.toLowerCase())) {
-        subcats.push({ name: p.subcategory, categoryName: p.category });
+      const subName = p.subcategoryName || p.subcategory;
+      if (subName && !subcats.some((s) => s.name.toLowerCase() === subName.toLowerCase())) {
+        subcats.push({ name: subName, categoryName: p.categoryName || p.category || '' });
       }
     });
 
@@ -130,9 +140,9 @@ export const CatalogPage: React.FC = () => {
       const q = searchParam.toLowerCase();
       result = result.filter(
         (p) =>
-          p.title.toLowerCase().includes(q) ||
-          p.brand.toLowerCase().includes(q) ||
-          p.category.toLowerCase().includes(q) ||
+          (p.title || '').toLowerCase().includes(q) ||
+          (p.brand || '').toLowerCase().includes(q) ||
+          (p.category || '').toLowerCase().includes(q) ||
           (p.subcategory && p.subcategory.toLowerCase().includes(q)) ||
           (p.hsnCode && p.hsnCode.includes(q)) ||
           (p.tags && p.tags.some((t) => t.toLowerCase().includes(q)))
@@ -142,7 +152,7 @@ export const CatalogPage: React.FC = () => {
     // Category filter
     if (selectedCategories.length > 0) {
       result = result.filter((p) =>
-        selectedCategories.some((c) => p.category.toLowerCase().includes(c.toLowerCase()))
+        selectedCategories.some((c) => (p.category || '').toLowerCase().includes(c.toLowerCase()))
       );
     }
 
@@ -248,6 +258,11 @@ export const CatalogPage: React.FC = () => {
     only24HourDelivery ||
     dealsParam ||
     Boolean(searchParam);
+
+  // When a subcategory is queried directly, render the Moglix-style Subcategory Landing Page (Screenshots 1-4)
+  if ((subcategoryParam || subcategoryIdParam) && !searchParam) {
+    return <SubcategoryLandingPage />;
+  }
 
   return (
     <div className="max-w-[1720px] w-full mx-auto px-4 sm:px-8 lg:px-12 py-8 space-y-6">
@@ -623,15 +638,7 @@ export const CatalogPage: React.FC = () => {
           {isLoading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {[...Array(6)].map((_, i) => (
-                <div
-                  key={i}
-                  className="bg-white rounded-2xl border border-industrial-200 p-4 space-y-4 animate-pulse h-96"
-                >
-                  <div className="bg-industrial-200 rounded-xl aspect-4/3" />
-                  <div className="h-4 bg-industrial-200 rounded w-3/4" />
-                  <div className="h-3 bg-industrial-200 rounded w-1/2" />
-                  <div className="h-10 bg-industrial-100 rounded-xl mt-6" />
-                </div>
+                <ProductCardSkeleton key={i} />
               ))}
             </div>
           ) : filteredProducts.length === 0 ? (

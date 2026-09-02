@@ -1,30 +1,36 @@
 import { apiClient } from '../services/apiClient';
 import type { Category, Subcategory, Brand, CreateCategoryInput, CreateSubcategoryInput } from '../types';
+import { brandApi } from './brandApi';
 
 export function mapBackendSubcategory(raw: any): Subcategory {
-  const id = String(raw.subcategoryId || raw.id || '');
+  const subcategoryId = Number(raw.subcategoryId || raw.id || 0);
+  const id = String(subcategoryId || '');
   return {
     id,
-    subcategoryId: Number(raw.subcategoryId || raw.id || 0),
-    categoryId: raw.categoryId ? Number(raw.categoryId) : undefined,
+    subcategoryId,
+    categoryId: Number(raw.categoryId || 0),
+    categoryName: raw.categoryName || '',
     name: raw.name || '',
-    slug: raw.slug || `subcategory-${id}`,
+    slug: raw.slug || (raw.name ? raw.name.toLowerCase().replace(/\s+/g, '-') : `subcategory-${id}`),
     imageUrl: raw.imageUrl || raw.image || '',
+    image: raw.imageUrl || raw.image || '',
     active: raw.active ?? true,
     sortOrder: raw.sortOrder ?? 1,
     productCount: Number(raw.productCount ?? raw.itemCount ?? 0),
     itemCount: Number(raw.productCount ?? raw.itemCount ?? 0),
+    brands: Array.isArray(raw.brands) ? raw.brands : undefined,
     createdAt: raw.createdAt,
   };
 }
 
 export function mapBackendCategory(raw: any): Category {
-  const id = String(raw.categoryId || raw.id || '');
+  const categoryId = Number(raw.categoryId || raw.id || 0);
+  const id = String(categoryId || '');
   return {
     id,
-    categoryId: Number(raw.categoryId || raw.id || 0),
+    categoryId,
     name: raw.name || '',
-    slug: raw.slug || `category-${id}`,
+    slug: raw.slug || (raw.name ? raw.name.toLowerCase().replace(/\s+/g, '-') : `category-${id}`),
     iconName: raw.iconName || 'Building',
     description: raw.description || `Industrial ${raw.name} products for business procurement`,
     imageUrl: raw.imageUrl || raw.image || '',
@@ -40,7 +46,7 @@ export function mapBackendCategory(raw: any): Category {
 }
 
 export const categoryApi = {
-  // 1.1 Get All Categories (with Nested Subcategories)
+  // Flow 1: Mega-Menu / Header Navigation (Load Full Tree: GET /api/categories?includeSubcategories=true)
   async getCategories(params: { active?: boolean; includeSubcategories?: boolean } = { includeSubcategories: true }): Promise<Category[]> {
     try {
       const res = await apiClient.get('/categories', {
@@ -61,7 +67,7 @@ export const categoryApi = {
     return [];
   },
 
-  // 1.2 Get Category By Slug, Name, or ID
+  // Get Category By Slug, Name, or ID
   async getCategoryBySlug(slugOrId: string): Promise<Category | null> {
     if (!slugOrId) return null;
     const categories = await this.getCategories({ includeSubcategories: true });
@@ -102,7 +108,7 @@ export const categoryApi = {
     return null;
   },
 
-  // 1.3 Get Category By Numeric ID
+  // Get Category By Numeric ID
   async getCategoryById(id: number | string): Promise<Category> {
     const res = await apiClient.get(`/categories/${id}`);
     if (res.data?.success && res.data?.data) {
@@ -114,7 +120,7 @@ export const categoryApi = {
     throw new Error(`Category ${id} not found`);
   },
 
-  // 1.4 Create Category (Admin)
+  // Create Category (Admin)
   async createCategory(payload: CreateCategoryInput): Promise<Category> {
     const res = await apiClient.post('/categories', payload);
     if (res.data?.success && res.data?.data) {
@@ -123,7 +129,7 @@ export const categoryApi = {
     throw new Error(res.data?.message || 'Failed to create category');
   },
 
-  // 1.5 Update Category
+  // Update Category
   async updateCategory(id: number | string, payload: Partial<CreateCategoryInput>): Promise<Category> {
     const res = await apiClient.put(`/categories/${id}`, payload);
     if (res.data?.success && res.data?.data) {
@@ -132,14 +138,14 @@ export const categoryApi = {
     throw new Error(res.data?.message || 'Failed to update category');
   },
 
-  // 1.6 Delete Category
+  // Delete Category
   async deleteCategory(id: number | string): Promise<boolean> {
     const res = await apiClient.delete(`/categories/${id}`);
     return res.data?.success ?? true;
   },
 
-  // 2.1 Get All Subcategories (optionally filtered by categoryId)
-  async getSubcategories(params?: { categoryId?: number; active?: boolean }): Promise<Subcategory[]> {
+  // Subcategories helper
+  async getSubcategories(params?: { categoryId?: number | string; active?: boolean }): Promise<Subcategory[]> {
     try {
       const res = await apiClient.get('/subcategories', { params });
       if (res.data?.success && Array.isArray(res.data?.data)) {
@@ -154,7 +160,6 @@ export const categoryApi = {
     return [];
   },
 
-  // 2.2 Get Subcategory By ID
   async getSubcategoryById(id: number | string): Promise<Subcategory> {
     const res = await apiClient.get(`/subcategories/${id}`);
     if (res.data?.success && res.data?.data) {
@@ -163,7 +168,6 @@ export const categoryApi = {
     throw new Error(`Subcategory ${id} not found`);
   },
 
-  // 2.3 Create Subcategory
   async createSubcategory(payload: CreateSubcategoryInput): Promise<Subcategory> {
     const res = await apiClient.post('/subcategories', payload);
     if (res.data?.success && res.data?.data) {
@@ -172,7 +176,6 @@ export const categoryApi = {
     throw new Error(res.data?.message || 'Failed to create subcategory');
   },
 
-  // 2.4 Update Subcategory
   async updateSubcategory(id: number | string, payload: Partial<CreateSubcategoryInput>): Promise<Subcategory> {
     const res = await apiClient.put(`/subcategories/${id}`, payload);
     if (res.data?.success && res.data?.data) {
@@ -181,28 +184,13 @@ export const categoryApi = {
     throw new Error(res.data?.message || 'Failed to update subcategory');
   },
 
-  // 2.5 Delete Subcategory
   async deleteSubcategory(id: number | string): Promise<boolean> {
     const res = await apiClient.delete(`/subcategories/${id}`);
     return res.data?.success ?? true;
   },
 
-  // 3.1 Get Brands
-  async getBrands(): Promise<Brand[]> {
-    try {
-      const res = await apiClient.get('/brands');
-      if (res.data?.success && Array.isArray(res.data?.data)) {
-        return res.data.data.map((b: any) => ({
-          id: String(b.brandId || b.id || b.name),
-          name: b.name || '',
-          logo: b.logo || b.imageUrl || '',
-          category: b.category,
-          productCount: Number(b.productCount || 0),
-        }));
-      }
-    } catch {
-      // /brands endpoint may not exist on backend; handled gracefully by extracting from products
-    }
-    return [];
+  // Brands helper
+  async getBrands(params?: { subcategoryId?: number | string; active?: boolean }): Promise<Brand[]> {
+    return brandApi.getBrands(params);
   },
 };
