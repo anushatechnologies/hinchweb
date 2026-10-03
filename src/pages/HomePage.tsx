@@ -369,13 +369,21 @@ export const HomePage: React.FC = () => {
             </p>
 
             <div className="flex flex-wrap items-center gap-3 pt-2">
+              <Link
+                to="/estimations"
+                className="px-6 py-3 rounded-xl bg-industrial-950 hover:bg-black text-amber-300 font-black text-xs uppercase tracking-wider shadow-lg shadow-black/20 transition-all flex items-center gap-2 border border-amber-400/40 cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
+                <span>AI Instant Estimate & Quotation</span>
+              </Link>
+
               <button
                 type="button"
                 onClick={() => openRFQModal()}
                 className="px-6 py-3 rounded-xl bg-white text-brand-700 hover:bg-brand-50 font-black text-xs uppercase tracking-wider shadow-lg shadow-black/10 transition-all active:scale-98 cursor-pointer flex items-center gap-2"
               >
                 <FileText className="w-4 h-4 text-brand-600" />
-                <span>Upload BOQ & Request Quotes</span>
+                <span>Manual RFQ Broadcast</span>
               </button>
 
               <Link
@@ -383,7 +391,7 @@ export const HomePage: React.FC = () => {
                 className="px-5 py-3 rounded-xl bg-brand-800/80 hover:bg-brand-800 text-white font-bold text-xs border border-brand-500/40 transition-colors flex items-center gap-2"
               >
                 <Award className="w-4 h-4 text-brand-300" />
-                <span>Check Revolving Credit Line</span>
+                <span>Revolving Credit</span>
               </Link>
             </div>
           </div>

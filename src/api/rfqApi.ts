@@ -73,4 +73,17 @@ export const rfqApi = {
     }
     throw new Error(`RFQ ${id} not found`);
   },
+
+  // 8d. Close RFQ
+  // Endpoint: PATCH /rfqs/{id}/close (or POST /rfqs/{id}/close)
+  async closeRFQ(id: number | string, reason: string = 'Procurement completed'): Promise<boolean> {
+    try {
+      const res = await apiClient.patch(`/rfqs/${id}/close`, { reason });
+      return res.data?.success ?? true;
+    } catch {
+      const postRes = await apiClient.post(`/rfqs/${id}/close`, { reason });
+      return postRes.data?.success ?? true;
+    }
+  },
 };
+

@@ -1,14 +1,18 @@
 import { create } from 'zustand';
+import { locationApi } from '../api/locationApi';
 
 interface LocationState {
   pincode: string;
   city: string;
   state: string;
   isInterState: boolean;
+  serviceable: boolean;
+  estimatedDays: number;
+  isExpressAvailable: boolean;
   isOpenModal: boolean;
   openPincodeModal: () => void;
   closePincodeModal: () => void;
-  setPincode: (pincode: string, city?: string, state?: string) => void;
+  setPincode: (pincode: string, city?: string, state?: string) => Promise<void> | void;
 }
 
 const PINCODE_MAP: Record<string, { city: string; state: string; isInterState: boolean }> = {
@@ -30,30 +34,44 @@ export const useLocationStore = create<LocationState>((set) => ({
   city: 'Hyderabad',
   state: 'Telangana',
   isInterState: false,
+  serviceable: true,
+  estimatedDays: 2,
+  isExpressAvailable: true,
   isOpenModal: false,
 
   openPincodeModal: () => set({ isOpenModal: true }),
   closePincodeModal: () => set({ isOpenModal: false }),
 
-  setPincode: (pincode: string, customCity?: string, customState?: string) => {
+  setPincode: async (pincode: string, customCity?: string, customState?: string) => {
     const cleanPin = pincode.trim().slice(0, 6);
     const lookup = PINCODE_MAP[cleanPin];
-    if (lookup) {
-      set({
-        pincode: cleanPin,
-        city: lookup.city,
-        state: lookup.state,
-        isInterState: lookup.isInterState,
-        isOpenModal: false,
-      });
-    } else {
-      set({
-        pincode: cleanPin,
-        city: customCity || 'Delivery Destination',
-        state: customState || 'India',
-        isInterState: true,
-        isOpenModal: false,
-      });
+
+    // Optimistically set location
+    set({
+      pincode: cleanPin,
+      city: lookup?.city || customCity || 'Delivery Destination',
+      state: lookup?.state || customState || 'Telangana',
+      isInterState: lookup ? lookup.isInterState : false,
+      isOpenModal: false,
+    });
+
+    // Check live serviceability from backend API
+    try {
+      const res = await locationApi.checkServiceability(cleanPin);
+      if (res && res.city) {
+        set({
+          pincode: cleanPin,
+          city: res.city,
+          state: res.state,
+          serviceable: res.serviceable,
+          estimatedDays: res.estimatedDays,
+          isExpressAvailable: res.isExpressAvailable,
+          isInterState: res.state !== 'Telangana',
+        });
+      }
+    } catch {
+      // Keep optimistic values if network error
     }
   },
 }));
+

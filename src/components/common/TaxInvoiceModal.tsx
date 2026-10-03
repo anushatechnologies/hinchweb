@@ -1,7 +1,8 @@
 import React from 'react';
 import type { TaxInvoice } from '../../types';
 import { formatINR } from '../../utils/formatters';
-import { X, Printer, ShieldCheck, QrCode } from 'lucide-react';
+import { invoiceApi } from '../../api/invoiceApi';
+import { X, Printer, Download, ShieldCheck, QrCode } from 'lucide-react';
 
 interface TaxInvoiceModalProps {
   invoice: TaxInvoice | null;
@@ -12,8 +13,22 @@ interface TaxInvoiceModalProps {
 export const TaxInvoiceModal: React.FC<TaxInvoiceModalProps> = ({ invoice, isOpen, onClose }) => {
   if (!isOpen || !invoice) return null;
 
+  const [isDownloading, setIsDownloading] = React.useState(false);
+
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!invoice) return;
+    setIsDownloading(true);
+    try {
+      await invoiceApi.downloadInvoicePdf(invoice.orderId || invoice.id, `${invoice.invoiceNumber || 'invoice'}.pdf`);
+    } catch {
+      window.print();
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   const seller = invoice.seller || {
@@ -80,11 +95,19 @@ export const TaxInvoiceModal: React.FC<TaxInvoiceModalProps> = ({ invoice, isOpe
           </div>
           <div className="flex items-center gap-3">
             <button
+              onClick={handleDownloadPdf}
+              disabled={isDownloading}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-emerald-600/20 transition-all cursor-pointer disabled:opacity-50"
+            >
+              <Download className="w-4 h-4" />
+              <span>{isDownloading ? 'Downloading...' : 'Download PDF'}</span>
+            </button>
+            <button
               onClick={handlePrint}
-              className="px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-brand-600/20 transition-all cursor-pointer"
+              className="px-4 py-2 bg-industrial-800 hover:bg-industrial-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
             >
               <Printer className="w-4 h-4" />
-              Print / Save PDF
+              <span>Print</span>
             </button>
             <button
               onClick={onClose}
@@ -267,10 +290,12 @@ export const TaxInvoiceModal: React.FC<TaxInvoiceModalProps> = ({ invoice, isOpe
                   <span className="font-semibold">{formatINR(invoice.igstTotal)}</span>
                 </div>
               )}
-              <div className="flex justify-between py-1 border-b border-industrial-200">
-                <span className="text-industrial-600">Freight & Handling Charges:</span>
-                <span className="font-semibold">{formatINR(invoice.freightAmount || 2500)}</span>
-              </div>
+              {Boolean(invoice.freightAmount && invoice.freightAmount > 0) && (
+                <div className="flex justify-between py-1 border-b border-industrial-200">
+                  <span className="text-industrial-600">Freight & Handling Charges:</span>
+                  <span className="font-semibold">{formatINR(invoice.freightAmount)}</span>
+                </div>
+              )}
               <div className="flex justify-between py-2 text-sm font-bold bg-industrial-900 text-white px-3 rounded-lg mt-2">
                 <span>Grand Total (INR):</span>
                 <span className="text-brand-400 font-mono text-base">{formatINR(invoice.grandTotal || 0)}</span>

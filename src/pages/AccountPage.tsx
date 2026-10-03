@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/useAuthStore';
 import { useToastStore } from '../store/useToastStore';
 import { kycApi } from '../api/kycApi';
+import { uploadApi } from '../api/uploadApi';
 import { formatINR } from '../utils/formatters';
 import type { KYCDocument, KYCDocumentType } from '../types';
 import {
@@ -28,22 +29,23 @@ export const AccountPage: React.FC = () => {
   const [editCompanyName, setEditCompanyName] = useState(user.companyName);
 
   // Address form
-  const [newSiteName, setNewSiteName] = useState('HITEC Tower B Project Site');
+  const [newSiteName, setNewSiteName] = useState('');
   const [newRecipient, setNewRecipient] = useState(user.name);
   const [newPhone, setNewPhone] = useState(user.phone);
   const [newLine1, setNewLine1] = useState('');
   const [newLine2, setNewLine2] = useState('');
-  const [newCity, setNewCity] = useState('Hyderabad');
-  const [newState, setNewState] = useState('Telangana');
-  const [newPincode, setNewPincode] = useState('500081');
+  const [newCity, setNewCity] = useState('');
+  const [newState, setNewState] = useState('');
+  const [newPincode, setNewPincode] = useState('');
   const [newLandmark, setNewLandmark] = useState('');
   const [hasHeavyAccess, setHasHeavyAccess] = useState(true);
 
   // KYC Upload Form
   const [docType, setDocType] = useState<KYCDocumentType>('GST_CERTIFICATE');
   const [docTitle, setDocTitle] = useState('GST Registration Certificate');
-  const [docNumber, setDocNumber] = useState(user.gstin || '36AAACT2727Q1ZW');
+  const [docNumber, setDocNumber] = useState(user.gstin || '');
   const [fileName, setFileName] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   useEffect(() => {
     kycApi.getDocuments(user.id).then(setDocuments).catch(console.error);
@@ -112,28 +114,38 @@ export const AccountPage: React.FC = () => {
 
   const handleSubmitKYC = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fileName) {
+    if (!selectedFile && !fileName) {
       showToast('error', 'Please select a document file to upload.', 'File Missing');
       return;
     }
     setIsUploadingDoc(true);
     try {
+      let fileUrl = `https://s3.amazonaws.com/hinchmart/documents/${fileName}`;
+      let actualSize = '1.4 MB';
+      if (selectedFile) {
+        const uploadRes = await uploadApi.uploadFile(selectedFile, 'kyc');
+        fileUrl = uploadRes.url || uploadRes.fileUrl;
+        actualSize = uploadRes.fileSize || `${(selectedFile.size / (1024 * 1024)).toFixed(1)} MB`;
+      }
+
       const newDoc = await kycApi.submitDocument(user.id, {
         documentType: docType,
         title: docTitle || `${docType.replace(/_/g, ' ')} Document`,
         documentNumber: docNumber,
-        fileName,
-        fileUrl: `https://s3.amazonaws.com/hinchmart/documents/${fileName}`,
-        fileSize: '1.4 MB',
+        fileName: selectedFile?.name || fileName,
+        fileUrl,
+        fileSize: actualSize,
         expiresOn: '2028-12-31',
       });
       setDocuments((prev) => [...prev, newDoc]);
       setIsUploadingDoc(false);
       setFileName('');
+      setSelectedFile(null);
       showToast('success', 'Document submitted for compliance review.', 'KYC Submitted');
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
       setIsUploadingDoc(false);
+      showToast('error', err?.message || 'Document upload failed. Please try again.', 'KYC Error');
     }
   };
 
@@ -605,6 +617,7 @@ export const AccountPage: React.FC = () => {
                   className="hidden"
                   onChange={(e) => {
                     if (e.target.files && e.target.files[0]) {
+                      setSelectedFile(e.target.files[0]);
                       setFileName(e.target.files[0].name);
                     }
                   }}

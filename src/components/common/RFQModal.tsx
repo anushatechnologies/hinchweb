@@ -4,6 +4,7 @@ import { useLocationStore } from '../../store/useLocationStore';
 import { useToastStore } from '../../store/useToastStore';
 import { rfqApi } from '../../api/rfqApi';
 import { categoryApi } from '../../api/categoryApi';
+import { uploadApi } from '../../api/uploadApi';
 import type { ProductUnit, Category } from '../../types';
 import {
   X,
@@ -50,6 +51,7 @@ export const RFQModal: React.FC = () => {
   const [targetPrice, setTargetPrice] = useState<string>('');
   const [specifications, setSpecifications] = useState('');
   const [attachmentName, setAttachmentName] = useState('');
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
@@ -108,6 +110,16 @@ export const RFQModal: React.FC = () => {
 
     setIsSubmitting(true);
     try {
+      let uploadedAttachmentUrl: string | undefined;
+      if (attachmentFile) {
+        try {
+          const uploadRes = await uploadApi.uploadFile(attachmentFile, 'rfq');
+          uploadedAttachmentUrl = uploadRes.url || uploadRes.fileUrl;
+        } catch (uploadErr) {
+          console.warn('Attachment upload failed, proceeding with RFQ:', uploadErr);
+        }
+      }
+
       const created = await rfqApi.createRFQ({
         title: productName.trim(),
         productName: productName.trim(),
@@ -122,6 +134,7 @@ export const RFQModal: React.FC = () => {
         targetPrice: targetPrice ? Number(targetPrice) : undefined,
         specifications: specifications.trim() || 'Standard BIS industrial grade material with MTC.',
         attachmentName: attachmentName || undefined,
+        attachmentUrl: uploadedAttachmentUrl,
         mtcRequired: true,
         paymentTerms: '30 Days Net Credit',
         siteAccess: 'Heavy Vehicle Access Available',
@@ -381,6 +394,7 @@ export const RFQModal: React.FC = () => {
                     id="boq-upload"
                     onChange={(e) => {
                       if (e.target.files && e.target.files[0]) {
+                        setAttachmentFile(e.target.files[0]);
                         setAttachmentName(e.target.files[0].name);
                       }
                     }}

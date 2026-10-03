@@ -9,7 +9,8 @@ export default defineConfig({
     react(),
   ],
   server: {
-    port: 5175,
+    port: 5180,
+    strictPort: true,
     host: true,
     proxy: {
       '/api': {

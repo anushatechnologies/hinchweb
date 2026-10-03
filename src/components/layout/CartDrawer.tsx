@@ -158,6 +158,7 @@ export const CartDrawer: React.FC = () => {
 
                         <div className="flex items-center gap-1.5 bg-white border border-industrial-300 rounded-lg p-0.5 shadow-2xs">
                           <button
+                            type="button"
                             onClick={() => {
                               if (item.quantity <= 1) {
                                 removeItem(itemId);
@@ -166,27 +167,32 @@ export const CartDrawer: React.FC = () => {
                               }
                             }}
                             className="w-7 h-7 flex items-center justify-center rounded text-industrial-600 hover:bg-industrial-100 active:scale-95 cursor-pointer"
+                            title="Decrease quantity"
+                            aria-label="Decrease quantity"
                           >
                             <Minus className="w-3 h-3" />
                           </button>
                           <input
                             type="number"
                             min={1}
-                            value={item.quantity}
+                            value={item.quantity || 1}
                             onChange={(e) => {
                               const val = parseInt(e.target.value, 10);
                               if (!isNaN(val) && val >= 1) {
                                 updateQuantity(itemId, val);
                               }
                             }}
-                            className="w-10 text-center font-mono font-bold text-xs text-industrial-900 bg-transparent focus:outline-none"
+                            className="w-10 text-center font-mono font-bold text-xs text-industrial-900 bg-transparent focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
                           <span className="text-[10px] text-industrial-500 font-semibold pr-1">
                             {item.unit || 'Piece'}
                           </span>
                           <button
-                            onClick={() => updateQuantity(itemId, item.quantity + 1)}
+                            type="button"
+                            onClick={() => updateQuantity(itemId, (item.quantity || 1) + 1)}
                             className="w-7 h-7 flex items-center justify-center rounded text-industrial-600 hover:bg-industrial-100 active:scale-95 cursor-pointer"
+                            title="Increase quantity"
+                            aria-label="Increase quantity"
                           >
                             <Plus className="w-3 h-3" />
                           </button>

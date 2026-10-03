@@ -15,6 +15,7 @@ interface CartState {
   removeItem: (productId: string) => Promise<void>;
   clearCart: () => Promise<void>;
   applyCoupon: (code: string) => Promise<{ success: boolean; message: string }>;
+  removeCoupon: () => Promise<void>;
 }
 
 const initialCart: Cart = {
@@ -28,7 +29,7 @@ const initialCart: Cart = {
   estimatedDeliveryDays: 2,
 };
 
-export const useCartStore = create<CartState>((set) => ({
+export const useCartStore = create<CartState>((set, get) => ({
   cart: initialCart,
   isLoading: false,
   isOpen: false,
@@ -51,10 +52,13 @@ export const useCartStore = create<CartState>((set) => ({
   addItem: async (product: Product, quantity: number) => {
     set({ isLoading: true });
     try {
-      const updatedCart = await cartApi.addToCart({
-        productId: product.id,
-        quantity: Math.max(product.moq || 1, quantity),
-      });
+      const updatedCart = await cartApi.addToCart(
+        {
+          productId: product.id,
+          quantity: Math.max(product.moq || 1, quantity),
+        },
+        product
+      );
       set({ cart: updatedCart, isLoading: false, isOpen: true });
     } catch (error) {
       console.warn('Failed to add item to backend cart:', error);
@@ -63,12 +67,42 @@ export const useCartStore = create<CartState>((set) => ({
   },
 
   updateQuantity: async (productId: string, quantity: number) => {
-    set({ isLoading: true });
-    try {
-      const updatedCart = await cartApi.addToCart({
-        productId,
-        quantity,
+    if (quantity <= 0) {
+      await get().removeItem(productId);
+      return;
+    }
+
+    // Instant optimistic update for immediate, fluid UI response
+    set((state) => {
+      const items = state.cart.items.map((it) => {
+        if (String(it.productId) === String(productId) || String(it.id) === String(productId)) {
+          const unitPrice = it.selectedUnitPrice || it.unitPrice || it.price || 0;
+          return {
+            ...it,
+            quantity,
+            totalPrice: unitPrice * quantity,
+          };
+        }
+        return it;
       });
+      const subtotal = items.reduce((s, it) => s + it.totalPrice, 0);
+      const gstTotal = Math.round(subtotal * 0.18);
+      const deliveryTotal = state.cart.deliveryTotal || state.cart.estimatedFreight || 0;
+      return {
+        cart: {
+          ...state.cart,
+          items,
+          subtotal,
+          taxableAmount: subtotal,
+          gstTotal,
+          totalGst: gstTotal,
+          grandTotal: subtotal + gstTotal + deliveryTotal,
+        },
+      };
+    });
+
+    try {
+      const updatedCart = await cartApi.updateQuantity(productId, quantity);
       set({ cart: updatedCart, isLoading: false });
     } catch (error) {
       console.warn('Failed to update cart item quantity:', error);
@@ -114,4 +148,16 @@ export const useCartStore = create<CartState>((set) => ({
       return { success: false, message: err.message || 'Failed to apply coupon' };
     }
   },
+
+  removeCoupon: async () => {
+    set({ isLoading: true });
+    try {
+      const cart = await cartApi.removeCoupon();
+      set({ cart, isLoading: false });
+    } catch (error) {
+      console.warn('Failed to remove coupon:', error);
+      set({ isLoading: false });
+    }
+  },
 }));
+

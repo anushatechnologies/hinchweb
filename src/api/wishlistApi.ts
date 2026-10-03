@@ -4,6 +4,9 @@ import type { WishlistItem } from '../types';
 export const wishlistApi = {
   // 10.1 Get Wishlist
   async getWishlist(): Promise<WishlistItem[]> {
+    const token = localStorage.getItem('hinchmart_auth_token');
+    if (!token) return [];
+
     try {
       const res = await apiClient.get('/wishlist');
       if (res.data?.success && Array.isArray(res.data?.data)) {

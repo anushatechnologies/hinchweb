@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { Product } from '../../types';
-import { useCartStore } from '../../store/useCartStore';
+import { useVariantModalStore } from '../../store/useVariantModalStore';
 import { useRFQModalStore } from '../../store/useRFQModalStore';
-import { useToastStore } from '../../store/useToastStore';
 import { formatINR } from '../../utils/formatters';
 import { calculateBulkPrice } from '../../utils/tax';
 import {
@@ -20,31 +19,17 @@ interface ProductCardProps {
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
-  const { addItem } = useCartStore();
+  const { openVariantModal } = useVariantModalStore();
   const { openRFQModal } = useRFQModalStore();
-  const { showToast } = useToastStore();
 
   const [quantity, setQuantity] = useState<number>(1);
-  const [isAdding, setIsAdding] = useState(false);
 
   const pricing = calculateBulkPrice(product, quantity);
 
-  const handleAddToCart = async (e: React.MouseEvent) => {
+  const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsAdding(true);
-    try {
-      await addItem(product, quantity);
-      showToast(
-        'success',
-        `Added ${quantity} ${product.unit} of ${product.title} to cart.`,
-        'Added to Cart'
-      );
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsAdding(false);
-    }
+    openVariantModal(product);
   };
 
   const handleQuickRFQ = (e: React.MouseEvent) => {
@@ -176,7 +161,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
             <button
               type="button"
               onClick={handleAddToCart}
-              disabled={isAdding}
               className="flex-1 py-2 px-3 bg-brand-600 hover:bg-brand-500 active:scale-98 text-white rounded-xl font-bold text-xs shadow-md shadow-brand-600/20 flex items-center justify-center gap-1.5 transition-all"
             >
               <ShoppingCart className="w-3.5 h-3.5" />

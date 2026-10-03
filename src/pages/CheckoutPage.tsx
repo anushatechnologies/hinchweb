@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useCartStore } from '../store/useCartStore';
 import { useAuthStore } from '../store/useAuthStore';
+import { useAuthModalStore } from '../store/useAuthModalStore';
 import { useToastStore } from '../store/useToastStore';
 import { orderApi } from '../api/orderApi';
 import type { PaymentMethod, Address } from '../types';
@@ -15,19 +16,50 @@ import {
   QrCode,
   Landmark,
   Lock,
+  AlertCircle,
 } from 'lucide-react';
 
 export const CheckoutPage: React.FC = () => {
   const navigate = useNavigate();
-  const { cart } = useCartStore();
-  const { user, addresses, addAddress } = useAuthStore();
+  const { cart, clearCart } = useCartStore();
+  const { user, addresses, addAddress, fetchAddresses, isAuthenticated } = useAuthStore();
+  const { openAuthModal } = useAuthModalStore();
   const { showToast } = useToastStore();
 
+  const taxableValue = useMemo(() => {
+    if (cart.taxableAmount !== undefined && cart.taxableAmount > 0) return cart.taxableAmount;
+    if (cart.subtotal !== undefined && cart.subtotal > 0) return cart.subtotal;
+    return cart.items.reduce((sum, it) => sum + (it.price || it.unitPrice || 0) * (it.quantity || 1), 0);
+  }, [cart]);
+
+  const totalGst = useMemo(() => {
+    if (cart.totalGst !== undefined && cart.totalGst > 0) return cart.totalGst;
+    if (cart.gstTotal !== undefined && cart.gstTotal > 0) return cart.gstTotal;
+    const itemGst = cart.items.reduce((sum, it) => {
+      const p = (it.price || it.unitPrice || 0) * (it.quantity || 1);
+      return sum + Math.round((p * (it.gstRate || 18)) / 100);
+    }, 0);
+    if (itemGst > 0) return itemGst;
+    return Math.round(taxableValue * 0.18);
+  }, [cart, taxableValue]);
+
+  const estimatedFreight = useMemo(() => {
+    if (cart.estimatedFreight !== undefined) return cart.estimatedFreight;
+    if (cart.deliveryTotal !== undefined) return cart.deliveryTotal;
+    if (cart.deliveryCharge !== undefined) return cart.deliveryCharge;
+    return 0;
+  }, [cart]);
+
+  const grandTotal = useMemo(() => {
+    if (cart.grandTotal !== undefined && cart.grandTotal > 0) return cart.grandTotal;
+    return taxableValue + totalGst + estimatedFreight;
+  }, [cart, taxableValue, totalGst, estimatedFreight]);
+
   const [deliveryAddressId, setDeliveryAddressId] = useState<string>(
-    addresses[0]?.id || 'addr_1'
+    addresses[0]?.id || ''
   );
   const [billingAddressId, setBillingAddressId] = useState<string>(
-    addresses[2]?.id || addresses[0]?.id || 'addr_3'
+    addresses[2]?.id || addresses[0]?.id || ''
   );
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('pay_later');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -35,14 +67,29 @@ export const CheckoutPage: React.FC = () => {
   // New address modal state
   const [isAddingAddress, setIsAddingAddress] = useState(false);
   const [newAddrType, setNewAddrType] = useState<Address['addressType']>('Site / Project');
-  const [newContactName, setNewContactName] = useState(user.name);
-  const [newMobile, setNewMobile] = useState(user.phone);
-  const [newCompany, setNewCompany] = useState(user.companyName);
-  const [newGstin, setNewGstin] = useState(user.gstin);
+  const [newContactName, setNewContactName] = useState(user?.name || '');
+  const [newMobile, setNewMobile] = useState(user?.phone || '');
+  const [newCompany, setNewCompany] = useState(user?.companyName || '');
+  const [newGstin, setNewGstin] = useState(user?.gstin || '');
   const [newLine1, setNewLine1] = useState('');
-  const [newCity, setNewCity] = useState('Hyderabad');
-  const [newState, setNewState] = useState('Telangana');
-  const [newPincode, setNewPincode] = useState('500081');
+  const [newCity, setNewCity] = useState('');
+  const [newState, setNewState] = useState('');
+  const [newPincode, setNewPincode] = useState('');
+
+  useEffect(() => {
+    fetchAddresses();
+  }, [fetchAddresses]);
+
+  useEffect(() => {
+    if (addresses.length > 0) {
+      if (!deliveryAddressId || !addresses.some((a) => a.id === deliveryAddressId)) {
+        setDeliveryAddressId(addresses[0].id);
+      }
+      if (!billingAddressId || !addresses.some((a) => a.id === billingAddressId)) {
+        setBillingAddressId(addresses[2]?.id || addresses[0].id);
+      }
+    }
+  }, [addresses, deliveryAddressId, billingAddressId]);
 
   if (cart.items.length === 0) {
     return (
@@ -91,16 +138,31 @@ export const CheckoutPage: React.FC = () => {
   };
 
   const handlePlaceOrder = async () => {
+    if (!selectedDelivery && addresses.length === 0) {
+      setIsAddingAddress(true);
+      showToast('error', 'Please add a project site delivery address before placing order.', 'Address Required');
+      return;
+    }
+
+    if (!isAuthenticated && !localStorage.getItem('hinchmart_auth_token')) {
+      showToast('info', 'Please sign in with your mobile OTP or password to authorize and place orders.', 'Sign In Required');
+      openAuthModal();
+      return;
+    }
+
     setIsProcessing(true);
     try {
       const newOrder = await orderApi.placeOrder({
-        addressId: selectedDelivery?.addressId || deliveryAddressId || 1,
+        addressId: selectedDelivery?.addressId || (selectedDelivery?.id ? Number(selectedDelivery.id) : undefined) || 1,
         paymentMethod: (paymentMethod || 'RAZORPAY').toUpperCase(),
-        deliverySlot: '2026-08-31 Morning (08:00 - 12:00)',
+        deliverySlot: 'Morning (08:00 - 12:00)',
         deliveryInstructions: 'Deliver to project site with heavy vehicle trailer access.',
-        poNumber: 'PO-APEX-2026-001',
+        poNumber: `PO-APEX-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
         requiresCraneUnloading: true,
       });
+
+      // Clear cart
+      await clearCart();
 
       // Trigger Confetti Celebration
       confetti({
@@ -116,15 +178,15 @@ export const CheckoutPage: React.FC = () => {
       );
 
       navigate(`/order-confirmation/${newOrder.id}`);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
       setIsProcessing(false);
-      showToast('error', 'Failed to place order. Please try again.', 'Error');
+      showToast('error', err?.message || 'Failed to place order. Please try again.', 'Error');
     }
   };
 
-  const selectedDelivery = addresses.find((a) => a.id === deliveryAddressId) || addresses[0];
-  const selectedBilling = addresses.find((a) => a.id === billingAddressId) || addresses[2] || addresses[0];
+  const selectedDelivery = addresses.find((a) => a.id === deliveryAddressId) || addresses[0] || null;
+  const selectedBilling = addresses.find((a) => a.id === billingAddressId) || addresses[2] || addresses[0] || null;
 
   return (
     <div className="max-w-[1720px] w-full mx-auto px-4 sm:px-8 lg:px-12 py-8 space-y-8">
@@ -148,6 +210,30 @@ export const CheckoutPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Left: Checkout Steps (8 cols) */}
         <div className="lg:col-span-8 space-y-6">
+          {/* Guest / Unauthenticated Notice Banner */}
+          {!isAuthenticated && !localStorage.getItem('hinchmart_auth_token') && (
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold text-sm shrink-0">
+                  <AlertCircle className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-amber-950">Enterprise Account Login Recommended</h4>
+                  <p className="text-[11px] text-amber-800">
+                    Sign in with your mobile OTP to link your registered GSTIN, auto-save delivery sites, and activate 30-day payment credit terms.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={openAuthModal}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl transition-all shrink-0 cursor-pointer shadow-xs"
+              >
+                Login / Register Now
+              </button>
+            </div>
+          )}
+
           {/* Step 1: Select Delivery Site */}
           <div className="bg-white rounded-3xl border border-industrial-200 p-6 shadow-card space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-industrial-100">
@@ -165,7 +251,7 @@ export const CheckoutPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsAddingAddress(true)}
-                className="px-3 py-1.5 rounded-lg border border-brand-300 bg-brand-50 hover:bg-brand-100 text-brand-800 font-bold text-xs flex items-center gap-1 transition-colors"
+                className="px-3 py-1.5 rounded-lg border border-brand-300 bg-brand-50 hover:bg-brand-100 text-brand-800 font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Add Project Site</span>
@@ -173,38 +259,54 @@ export const CheckoutPage: React.FC = () => {
             </div>
 
             {/* Address Selection Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {addresses.map((addr) => {
-                const isSelected = deliveryAddressId === addr.id;
-                return (
-                  <div
-                    key={addr.id}
-                    onClick={() => setDeliveryAddressId(addr.id)}
-                    className={`p-4 rounded-2xl border cursor-pointer transition-all space-y-2 relative ${
-                      isSelected
-                        ? 'border-brand-500 bg-brand-50/50 ring-2 ring-brand-500/20'
-                        : 'border-industrial-200 hover:border-industrial-300 bg-white'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded bg-industrial-100 text-industrial-800">
-                        {addr.addressType}
-                      </span>
-                      {isSelected && <CheckCircle2 className="w-4 h-4 text-brand-600" />}
-                    </div>
+            {addresses.length === 0 ? (
+              <div className="p-6 bg-industrial-50 rounded-2xl border border-dashed border-industrial-300 text-center space-y-3">
+                <p className="text-xs text-industrial-600">
+                  No saved delivery addresses found. Please add your construction or project site address to schedule logistics dispatch.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setIsAddingAddress(true)}
+                  className="px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs rounded-xl shadow-xs inline-flex items-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Project Site Address</span>
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {addresses.map((addr) => {
+                  const isSelected = deliveryAddressId === addr.id;
+                  return (
+                    <div
+                      key={addr.id}
+                      onClick={() => setDeliveryAddressId(addr.id)}
+                      className={`p-4 rounded-2xl border cursor-pointer transition-all space-y-2 relative ${
+                        isSelected
+                          ? 'border-brand-500 bg-brand-50/50 ring-2 ring-brand-500/20'
+                          : 'border-industrial-200 hover:border-industrial-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded bg-industrial-100 text-industrial-800">
+                          {addr.addressType}
+                        </span>
+                        {isSelected && <CheckCircle2 className="w-4 h-4 text-brand-600" />}
+                      </div>
 
-                    <div className="font-bold text-xs text-industrial-900">{addr.companyName}</div>
-                    <div className="text-xs text-industrial-600 leading-relaxed">
-                      {addr.addressLine1}, {addr.city}, {addr.state} - <strong className="font-mono text-industrial-900">{addr.pincode}</strong>
+                      <div className="font-bold text-xs text-industrial-900">{addr.companyName}</div>
+                      <div className="text-xs text-industrial-600 leading-relaxed">
+                        {addr.addressLine1}, {addr.city}, {addr.state} - <strong className="font-mono text-industrial-900">{addr.pincode}</strong>
+                      </div>
+                      <div className="text-[11px] text-industrial-500 pt-1 border-t border-industrial-100 flex items-center justify-between">
+                        <span>Attn: {addr.contactName}</span>
+                        <span>Ph: {addr.mobile}</span>
+                      </div>
                     </div>
-                    <div className="text-[11px] text-industrial-500 pt-1 border-t border-industrial-100 flex items-center justify-between">
-                      <span>Attn: {addr.contactName}</span>
-                      <span>Ph: {addr.mobile}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Step 2: GSTIN Billing Address for ITC Claim */}
@@ -221,37 +323,43 @@ export const CheckoutPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {addresses.map((addr) => {
-                const isSelected = billingAddressId === addr.id;
-                return (
-                  <div
-                    key={`bill_${addr.id}`}
-                    onClick={() => setBillingAddressId(addr.id)}
-                    className={`p-4 rounded-2xl border cursor-pointer transition-all space-y-2 ${
-                      isSelected
-                        ? 'border-emerald-500 bg-emerald-50/50 ring-2 ring-emerald-500/20'
-                        : 'border-industrial-200 hover:border-industrial-300 bg-white'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
-                        {addr.addressType}
-                      </span>
-                      {isSelected && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
-                    </div>
+            {addresses.length === 0 ? (
+              <div className="p-4 bg-industrial-50 rounded-2xl border border-dashed border-industrial-300 text-center text-xs text-industrial-500">
+                Billing address and GSTIN details will sync with your profile or newly added delivery site.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {addresses.map((addr) => {
+                  const isSelected = billingAddressId === addr.id;
+                  return (
+                    <div
+                      key={`bill_${addr.id}`}
+                      onClick={() => setBillingAddressId(addr.id)}
+                      className={`p-4 rounded-2xl border cursor-pointer transition-all space-y-2 ${
+                        isSelected
+                          ? 'border-emerald-500 bg-emerald-50/50 ring-2 ring-emerald-500/20'
+                          : 'border-industrial-200 hover:border-industrial-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                          {addr.addressType}
+                        </span>
+                        {isSelected && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
+                      </div>
 
-                    <div className="font-bold text-xs text-industrial-900">{addr.companyName}</div>
-                    <div className="text-xs font-mono font-bold text-brand-700">
-                      GSTIN: {addr.gstin || user.gstin}
+                      <div className="font-bold text-xs text-industrial-900">{addr.companyName}</div>
+                      <div className="text-xs font-mono font-bold text-brand-700">
+                        GSTIN: {addr.gstin || user?.gstin || 'Not Provided'}
+                      </div>
+                      <div className="text-xs text-industrial-600 truncate">
+                        {addr.addressLine1}, {addr.city}
+                      </div>
                     </div>
-                    <div className="text-xs text-industrial-600 truncate">
-                      {addr.addressLine1}, {addr.city}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Step 3: Payment Options */}
@@ -444,21 +552,21 @@ export const CheckoutPage: React.FC = () => {
             <div className="space-y-2 text-xs pt-3 border-t border-industrial-200">
               <div className="flex justify-between text-industrial-600">
                 <span>Taxable Value:</span>
-                <span className="font-semibold text-industrial-900">{formatINR(cart.taxableAmount)}</span>
+                <span className="font-semibold text-industrial-900">{formatINR(taxableValue)}</span>
               </div>
               <div className="flex justify-between text-industrial-600">
                 <span>Total GST (100% ITC Eligible):</span>
-                <span className="font-semibold text-industrial-900">{formatINR(cart.totalGst)}</span>
+                <span className="font-semibold text-industrial-900">{formatINR(totalGst)}</span>
               </div>
               <div className="flex justify-between text-industrial-600">
                 <span>Site Transit Freight:</span>
                 <span className="font-semibold text-emerald-700">
-                  {cart.estimatedFreight === 0 ? 'FREE' : formatINR(cart.estimatedFreight)}
+                  {estimatedFreight === 0 ? '₹0' : formatINR(estimatedFreight)}
                 </span>
               </div>
               <div className="flex justify-between text-base font-bold text-industrial-950 pt-2 border-t border-industrial-200">
                 <span>Total Payable:</span>
-                <span className="text-brand-600 font-mono text-xl">{formatINR(cart.grandTotal)}</span>
+                <span className="text-brand-600 font-mono text-xl">{formatINR(grandTotal)}</span>
               </div>
             </div>
 
@@ -466,11 +574,19 @@ export const CheckoutPage: React.FC = () => {
             <div className="p-3 bg-industrial-50 rounded-xl border border-industrial-200/70 text-[11px] space-y-1">
               <div>
                 <strong className="text-industrial-800">Dispatch Site:</strong>{' '}
-                <span className="text-industrial-600">{selectedDelivery.city} ({selectedDelivery.pincode})</span>
+                {selectedDelivery ? (
+                  <span className="text-industrial-600">
+                    {selectedDelivery.city || 'Project Site'} ({selectedDelivery.pincode})
+                  </span>
+                ) : (
+                  <span className="text-amber-700 font-semibold">No address selected</span>
+                )}
               </div>
               <div>
                 <strong className="text-industrial-800">ITC Claim GSTIN:</strong>{' '}
-                <span className="font-mono text-brand-700 font-bold">{selectedBilling.gstin || user.gstin}</span>
+                <span className="font-mono text-brand-700 font-bold">
+                  {selectedBilling?.gstin || user?.gstin || 'Not Provided / Direct'}
+                </span>
               </div>
             </div>
 
@@ -486,7 +602,7 @@ export const CheckoutPage: React.FC = () => {
               ) : (
                 <>
                   <Lock className="w-4 h-4" />
-                  <span>Authorize & Place Order ({formatINR(cart.grandTotal)})</span>
+                  <span>Authorize & Place Order ({formatINR(grandTotal)})</span>
                 </>
               )}
             </button>

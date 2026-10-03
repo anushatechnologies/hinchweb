@@ -3,6 +3,9 @@ import type { Notification } from '../types';
 
 export const notificationApi = {
   async getNotifications(): Promise<Notification[]> {
+    const token = localStorage.getItem('hinchmart_auth_token');
+    if (!token) return [];
+
     try {
       const res = await apiClient.get('/notifications');
       if (res.data?.success && Array.isArray(res.data?.data)) {

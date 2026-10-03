@@ -305,11 +305,15 @@ export interface BusinessInfo {
 
 export interface User {
   id: string | number;
+  userId?: number;
+  firebaseUid?: string;
   name: string;
   fullName?: string;
   email: string;
   phone: string;
   role?: string;
+  active?: boolean;
+  sellerId?: number | null;
   tier?: string;
   companyName: string;
   gstin: string;
@@ -366,6 +370,7 @@ export interface Address {
   mobile: string;
   phone?: string;
   companyName: string;
+  country?: string;
   gstin?: string;
   addressLine1: string;
   addressLine2?: string;
@@ -373,7 +378,7 @@ export interface Address {
   city: string;
   state: string;
   pincode: string;
-  addressType: 'Site / Project' | 'Warehouse / Factory' | 'Office / Commercial' | 'Other' | string;
+  addressType: 'Site / Project' | 'Warehouse / Factory' | 'Office / Commercial' | 'HOME' | 'WORK' | 'OTHER' | string;
   isDefault?: boolean;
   isDefaultDelivery: boolean;
   isDefaultBilling: boolean;
@@ -388,6 +393,7 @@ export interface CreateSiteAddressInput {
   phone?: string;
   mobile?: string;
   companyName?: string;
+  country?: string;
   gstin?: string;
   addressLine1: string;
   addressLine2?: string;
@@ -455,9 +461,13 @@ export interface CartItem {
   unit?: ProductUnit;
   price?: number;
   unitPrice?: number;
+  originalPrice?: number;
+  appliedTier?: string;
   selectedUnitPrice?: number;
   effectiveUnitPrice?: number;
   totalPrice: number;
+  lineTotal?: number;
+  lineGst?: number;
   gstRate: number;
   hsnCode?: string;
   moq?: number;
@@ -471,6 +481,9 @@ export interface CartItem {
 export interface Cart {
   id?: string;
   cartId?: number;
+  storeId?: number;
+  storeName?: string;
+  storeSlug?: string;
   items: CartItem[];
   totalItems?: number;
   subtotal: number;
@@ -831,3 +844,246 @@ export interface Conversation {
   lastMessageTime?: string;
   messages?: ChatMessage[];
 }
+
+// 1. File Upload
+export interface UploadResponse {
+  success: boolean;
+  statusCode?: number;
+  message?: string;
+  url: string;
+  fileUrl: string;
+  fileName: string;
+  fileSize: string;
+  sizeBytes?: number;
+}
+
+// 2. Pincode & Delivery Serviceability
+export interface ServiceabilityResult {
+  success?: boolean;
+  pincode: string;
+  city: string;
+  state: string;
+  serviceable: boolean;
+  estimatedDays: number;
+  isExpressAvailable: boolean;
+  area?: string;
+}
+
+// 3. Global Tax Invoice Item
+export interface GlobalInvoiceItem {
+  invoiceNumber: string;
+  orderId: number | string;
+  orderNumber: string;
+  date: string;
+  amount: number;
+  downloadUrl: string;
+  status: string;
+}
+
+// 4. Order Cancellation, Return & MTC
+export interface OrderCancellationInput {
+  location?: string;
+  description: string;
+}
+
+export interface OrderCancellationResult {
+  orderId: number | string;
+  orderNumber: string;
+  orderStatus: string;
+  paymentStatus: string;
+  totalAmount: number;
+}
+
+export interface OrderDisputeInput {
+  reason: string;
+  description: string;
+  itemId?: number;
+  photos?: string[];
+}
+
+export interface OrderDisputeResult {
+  disputeId: string;
+  orderId: number | string;
+  status: string;
+  reason: string;
+  description: string;
+  createdAt: string;
+}
+
+export interface MillTestCertificate {
+  orderId: number | string;
+  certificateNumber: string;
+  productName: string;
+  heatNumber: string;
+  batchNumber: string;
+  grade: string;
+  inspectionAgency: string;
+  chemicalAnalysis: Record<string, string>;
+  mechanicalProperties: Record<string, string>;
+  status: string;
+  verified: boolean;
+  downloadUrl?: string;
+}
+
+// 5. Coupons & Promotions
+export interface Coupon {
+  couponId: number;
+  code: string;
+  description: string;
+  discountType: 'PERCENTAGE' | 'FLAT' | string;
+  discountValue: number;
+  minimumOrderAmount: number;
+  maxDiscountAmount: number;
+  validUntil: string;
+}
+
+// 6. Product Reviews
+export interface ProductReview {
+  reviewId: number;
+  productId: number;
+  customerName?: string;
+  rating: number;
+  title: string;
+  comment: string;
+  createdAt: string;
+}
+
+export interface CreateReviewInput {
+  productId: number;
+  rating: number;
+  title: string;
+  comment: string;
+}
+
+// 7. Credit Limit & Ledger
+export interface CreditApplicationInput {
+  businessName: string;
+  gstin: string;
+  panNumber: string;
+  requestedLimit: number;
+  tenureDays: number;
+  annualTurnover: number;
+  financialDocUrls?: string[];
+  notes?: string;
+}
+
+export interface CreditApplicationResult {
+  applicationId: string;
+  businessName: string;
+  gstin: string;
+  requestedLimit: number;
+  approvedLimit?: number;
+  tenureDays: number;
+  status: string;
+  message?: string;
+  appliedAt?: string;
+}
+
+export interface CreditLedgerTransaction {
+  transactionId: string;
+  type: 'DRAWDOWN' | 'REPAYMENT' | string;
+  amount: number;
+  description: string;
+  referenceNumber?: string;
+  date: string;
+}
+
+export interface CreditLedger {
+  creditLimit: number;
+  availableLimit: number;
+  utilizedLimit: number;
+  dueAmount: number;
+  dueDate: string;
+  status: string;
+  currency: string;
+  transactions: CreditLedgerTransaction[];
+}
+
+// 8. RFQ Negotiation
+export interface RejectQuoteInput {
+  reason: string;
+}
+
+export interface CounterQuoteInput {
+  counterPrice: number;
+  quantity?: number;
+  notes?: string;
+}
+
+export interface CloseRFQInput {
+  reason: string;
+}
+
+// 9. AI Requirement Estimation & Quotation Types
+export type EstimationItemStatus = 'MATCHED' | 'MULTIPLE_MATCHES' | 'NOT_FOUND' | 'RESOLVED';
+export type EstimationStatus =
+  | 'PROCESSING'
+  | 'REQUIREMENTS_EXTRACTED'
+  | 'RESOLVED'
+  | 'QUOTATION_GENERATED'
+  | 'EXPIRED';
+
+export interface CandidateProduct {
+  productId: number | string;
+  title: string;
+  brand: string;
+  category: string;
+  price: number;
+  mrp: number;
+  unit: string;
+  stock: number;
+  imageUrl: string;
+  specifications: Record<string, string>;
+  appliedTier?: string;
+  tierSavings?: number;
+}
+
+export interface EstimationItem {
+  itemId: number | string;
+  requirementText: string;
+  quantity: number;
+  unit: string;
+  matchedProductId: number | string | null;
+  matchedProductTitle: string | null;
+  matchedProductBrand: string | null;
+  matchedProductImage: string | null;
+  unitPrice: number;
+  appliedTier: string;
+  tierDiscount: number;
+  gstRate: number;
+  gstAmount: number;
+  lineTotal: number;
+  status: EstimationItemStatus;
+  candidateProducts: CandidateProduct[];
+}
+
+export interface Estimation {
+  id: string;
+  estimationNumber: string;
+  fileName: string;
+  fileUrl?: string;
+  fileSizeFormatted?: string;
+  status: EstimationStatus;
+  projectNotes?: string;
+  createdAt: string;
+  validUntil?: string;
+  quotationNumber?: string;
+  quotationPdfUrl?: string | null;
+  itemsCount: number;
+  subtotal: number;
+  gstTotal: number;
+  tierSavings: number;
+  grandTotal: number;
+  items: EstimationItem[];
+}
+
+export interface EstimationHistoryResponse {
+  data: Estimation[];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+

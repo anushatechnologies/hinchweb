@@ -90,6 +90,55 @@ export const RFQPage: React.FC = () => {
     }
   };
 
+  const handleRejectQuote = async (quote: Quote) => {
+    const reason = window.prompt('Reason for rejecting quotation:', 'Rate is above project target budget.');
+    if (!reason) return;
+    try {
+      await quoteApi.rejectQuote(quote.id, reason);
+      showToast('info', `Quotation from ${quote.seller.name} rejected.`, 'Quote Rejected');
+      if (selectedRfq) {
+        const qList = await quoteApi.getQuotesForRFQ(selectedRfq.id);
+        setQuotes(qList.filter((q) => q.id !== quote.id));
+      }
+    } catch (err: any) {
+      showToast('error', err?.message || 'Failed to reject quote', 'Error');
+    }
+  };
+
+  const handleCounterQuote = async (quote: Quote) => {
+    const targetStr = window.prompt(
+      `Enter counter price per ${quote.unit} (Current: ₹${quote.pricePerUnit}):`,
+      String(Math.round(quote.pricePerUnit * 0.95))
+    );
+    if (!targetStr) return;
+    const targetPrice = parseFloat(targetStr);
+    if (isNaN(targetPrice) || targetPrice <= 0) {
+      showToast('error', 'Please enter a valid price', 'Invalid Input');
+      return;
+    }
+    try {
+      await quoteApi.counterQuote(quote.id, {
+        counterPrice: targetPrice,
+        quantity: quote.quantity,
+        notes: `Buyer counter offer at ₹${targetPrice}/${quote.unit}`,
+      });
+      showToast('success', `Counter offer of ₹${targetPrice}/${quote.unit} sent to ${quote.seller.name}.`, 'Counter Offer Sent');
+    } catch (err: any) {
+      showToast('error', err?.message || 'Failed to submit counter offer', 'Error');
+    }
+  };
+
+  const handleCloseRFQ = async (rfq: RFQ) => {
+    if (!window.confirm(`Are you sure you want to close RFQ #${rfq.rfqNumber}?`)) return;
+    try {
+      await rfqApi.closeRFQ(rfq.id, 'Procurement fulfilled through local supply.');
+      showToast('success', `RFQ #${rfq.rfqNumber} closed.`, 'RFQ Closed');
+      await loadData();
+    } catch (err: any) {
+      showToast('error', err?.message || 'Failed to close RFQ', 'Error');
+    }
+  };
+
   const filteredRfqs = rfqs.filter((r) => {
     if (activeTab === 'all') return true;
     return r.status === activeTab;
@@ -258,9 +307,21 @@ export const RFQPage: React.FC = () => {
                     <span className="text-xs font-bold text-brand-600 uppercase tracking-wider">
                       RFQ Comparison Matrix
                     </span>
-                    <span className="font-mono text-xs text-industrial-500 font-semibold">
-                      #{selectedRfq.rfqNumber}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs text-industrial-500 font-semibold">
+                        #{selectedRfq.rfqNumber}
+                      </span>
+                      {selectedRfq.status !== 'CLOSED' && selectedRfq.status !== 'Quote Accepted' && (
+                        <button
+                          type="button"
+                          onClick={() => handleCloseRFQ(selectedRfq)}
+                          className="px-2.5 py-1 text-[11px] font-bold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg cursor-pointer transition-colors"
+                          title="Close or cancel this RFQ"
+                        >
+                          Close RFQ
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <h2 className="text-xl font-black text-industrial-950">
                     {selectedRfq.productName}
@@ -394,21 +455,39 @@ export const RFQPage: React.FC = () => {
                                 <span>Quotation Accepted & Order Created</span>
                               </div>
                             ) : (
-                              <button
-                                type="button"
-                                onClick={() => handleAcceptQuote(quote)}
-                                disabled={isAccepting === quote.id}
-                                className="flex-1 py-2.5 px-4 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold text-xs shadow-md shadow-brand-600/20 flex items-center justify-center gap-1.5 transition-all active:scale-98"
-                              >
-                                {isAccepting === quote.id ? (
-                                  <>Converting to Purchase Order...</>
-                                ) : (
-                                  <>
-                                    <CheckCircle2 className="w-4 h-4" />
-                                    <span>Accept Quote & Generate Purchase Order</span>
-                                  </>
-                                )}
-                              </button>
+                              <div className="flex-1 flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleCounterQuote(quote)}
+                                  className="px-3.5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold text-xs shadow-sm transition-all"
+                                  title="Send Target Counter Price"
+                                >
+                                  Counter Offer
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRejectQuote(quote)}
+                                  className="px-3.5 py-2.5 border border-red-300 text-red-700 hover:bg-red-50 rounded-xl font-bold text-xs transition-all"
+                                  title="Reject Quotation"
+                                >
+                                  Reject
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleAcceptQuote(quote)}
+                                  disabled={isAccepting === quote.id}
+                                  className="flex-1 py-2.5 px-4 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold text-xs shadow-md shadow-brand-600/20 flex items-center justify-center gap-1.5 transition-all active:scale-98"
+                                >
+                                  {isAccepting === quote.id ? (
+                                    <>Converting to PO...</>
+                                  ) : (
+                                    <>
+                                      <CheckCircle2 className="w-4 h-4" />
+                                      <span>Accept & Create PO</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
                             )}
                           </div>
                         </div>

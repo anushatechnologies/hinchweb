@@ -189,6 +189,44 @@ export const categoryApi = {
     return res.data?.success ?? true;
   },
 
+  async resolveSubcategoryId(subNameOrSlug: string): Promise<number | undefined> {
+    if (!subNameOrSlug) return undefined;
+    const clean = subNameOrSlug.toLowerCase().trim().replace(/-/g, ' ');
+    const cats = await this.getCategories({ includeSubcategories: true });
+    for (const c of cats) {
+      if (c.subcategories) {
+        const found = c.subcategories.find(
+          (s) =>
+            s.name.toLowerCase() === clean ||
+            s.name.toLowerCase().replace(/-/g, ' ') === clean ||
+            s.slug.toLowerCase() === subNameOrSlug.toLowerCase()
+        );
+        if (found) return found.subcategoryId;
+      }
+    }
+    const allSubs = await this.getSubcategories({ active: true });
+    const directMatch = allSubs.find(
+      (s) =>
+        s.name.toLowerCase() === clean ||
+        s.name.toLowerCase().replace(/-/g, ' ') === clean ||
+        s.slug.toLowerCase() === subNameOrSlug.toLowerCase()
+    );
+    return directMatch?.subcategoryId;
+  },
+
+  async resolveCategoryId(catNameOrSlug: string): Promise<number | undefined> {
+    if (!catNameOrSlug) return undefined;
+    const clean = catNameOrSlug.toLowerCase().trim().replace(/-/g, ' ');
+    const cats = await this.getCategories({ includeSubcategories: false });
+    const found = cats.find(
+      (c) =>
+        c.name.toLowerCase() === clean ||
+        c.name.toLowerCase().replace(/-/g, ' ') === clean ||
+        c.slug.toLowerCase() === catNameOrSlug.toLowerCase()
+    );
+    return found?.categoryId;
+  },
+
   // Brands helper
   async getBrands(params?: { subcategoryId?: number | string; active?: boolean }): Promise<Brand[]> {
     return brandApi.getBrands(params);

@@ -16,7 +16,7 @@ import {
 
 export const CartPage: React.FC = () => {
   const navigate = useNavigate();
-  const { cart, updateQuantity, removeItem, clearCart, applyCoupon, fetchCart } = useCartStore();
+  const { cart, updateQuantity, removeItem, clearCart, applyCoupon, removeCoupon, fetchCart } = useCartStore();
 
   const [couponInput, setCouponInput] = useState('');
   const [couponMessage, setCouponMessage] = useState<{ text: string; isError: boolean } | null>(null);
@@ -140,6 +140,7 @@ export const CartPage: React.FC = () => {
                       <span className="text-xs font-semibold text-industrial-600">Quantity:</span>
                       <div className="flex items-center gap-2 bg-white border border-industrial-300 rounded-xl p-1 shadow-2xs">
                         <button
+                          type="button"
                           onClick={() => {
                             if (item.quantity <= 1) {
                               removeItem(itemId);
@@ -148,27 +149,32 @@ export const CartPage: React.FC = () => {
                             }
                           }}
                           className="w-8 h-8 flex items-center justify-center rounded-lg text-industrial-600 hover:bg-industrial-100 active:scale-95 cursor-pointer"
+                          title="Decrease quantity"
+                          aria-label="Decrease quantity"
                         >
                           <Minus className="w-3.5 h-3.5" />
                         </button>
                         <input
                           type="number"
                           min={1}
-                          value={item.quantity}
+                          value={item.quantity || 1}
                           onChange={(e) => {
                             const val = parseInt(e.target.value, 10);
                             if (!isNaN(val) && val >= 1) {
                               updateQuantity(itemId, val);
                             }
                           }}
-                          className="w-12 text-center font-mono font-bold text-sm text-industrial-900 bg-transparent focus:outline-none"
+                          className="w-12 text-center font-mono font-bold text-sm text-industrial-900 bg-transparent focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
                         <span className="text-xs text-industrial-500 font-semibold pr-1.5">
                           {item.unit || 'Piece'}
                         </span>
                         <button
-                          onClick={() => updateQuantity(itemId, item.quantity + 1)}
+                          type="button"
+                          onClick={() => updateQuantity(itemId, (item.quantity || 1) + 1)}
                           className="w-8 h-8 flex items-center justify-center rounded-lg text-industrial-600 hover:bg-industrial-100 active:scale-95 cursor-pointer"
+                          title="Increase quantity"
+                          aria-label="Increase quantity"
                         >
                           <Plus className="w-3.5 h-3.5" />
                         </button>
@@ -180,8 +186,20 @@ export const CartPage: React.FC = () => {
                         {formatINR(item.totalPrice)}
                       </div>
                       <div className="text-xs text-industrial-500">
-                        {formatINR(unitPrice)} / {item.unit || 'Piece'} (+{item.gstRate || 18}% GST)
+                        {item.originalPrice && item.originalPrice > unitPrice && (
+                          <span className="line-through text-industrial-400 mr-1.5 font-mono">
+                            {formatINR(item.originalPrice)}
+                          </span>
+                        )}
+                        <span className="font-mono">{formatINR(unitPrice)}</span> / {item.unit || 'Piece'} (+{item.gstRate || 18}% GST)
                       </div>
+                      {item.appliedTier && (
+                        <div className="mt-1">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            {item.appliedTier}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -246,6 +264,27 @@ export const CartPage: React.FC = () => {
                 <span className="font-semibold text-industrial-900 font-mono">{formatINR(cart.subtotal)}</span>
               </div>
 
+              {((cart.couponDiscount || cart.discountTotal || 0) > 0 || cart.appliedCoupon) && (
+                <div className="flex justify-between items-center text-emerald-700 font-bold bg-emerald-50 px-2.5 py-1.5 rounded-xl border border-emerald-200">
+                  <div className="flex items-center gap-1.5">
+                    <Tag className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>
+                      Coupon {cart.appliedCoupon?.code || (typeof cart.appliedCoupon === 'string' ? cart.appliedCoupon : 'Discount')}:
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono">-{formatINR(cart.couponDiscount || cart.discountTotal || 0)}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeCoupon()}
+                      className="text-[10px] text-rose-500 hover:text-rose-700 underline font-normal cursor-pointer"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {(cart.totalBulkDiscount || 0) > 0 && (
                 <div className="flex justify-between text-emerald-600 font-bold">
                   <span>Bulk Tier Savings:</span>
@@ -256,14 +295,14 @@ export const CartPage: React.FC = () => {
               <div className="flex justify-between text-industrial-600">
                 <span>GST Tax (CGST + SGST):</span>
                 <span className="font-semibold text-industrial-900 font-mono">
-                  {formatINR(cart.gstTotal || cart.taxTotal || 0)}
+                  {formatINR(cart.totalGst || cart.gstTotal || cart.taxTotal || 0)}
                 </span>
               </div>
 
               <div className="flex justify-between text-industrial-600">
                 <span>Freight & Transit Insurance:</span>
                 <span className="font-semibold text-industrial-900 font-mono">
-                  {(cart.deliveryTotal || 0) === 0 ? 'FREE' : formatINR(cart.deliveryTotal || 0)}
+                  {(cart.deliveryCharge || cart.deliveryTotal || 0) === 0 ? 'FREE' : formatINR(cart.deliveryCharge || cart.deliveryTotal || 0)}
                 </span>
               </div>
 

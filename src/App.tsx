@@ -8,6 +8,8 @@ import { RFQModal } from './components/common/RFQModal';
 import { PincodeModal } from './components/common/PincodeModal';
 import { AuthModal } from './components/common/AuthModal';
 import { ToastContainer } from './components/common/ToastContainer';
+import { VariantSelectModal } from './components/common/VariantSelectModal';
+import { CartSnackbar } from './components/common/CartSnackbar';
 
 import { HomePage } from './pages/HomePage';
 import { CategoryLandingPage } from './pages/CategoryLandingPage';
@@ -21,6 +23,7 @@ import { RFQPage } from './pages/RFQPage';
 import { OrdersPage } from './pages/OrdersPage';
 import { InvoicesPage } from './pages/InvoicesPage';
 import { AccountPage } from './pages/AccountPage';
+import { EstimationsPage } from './pages/EstimationsPage';
 import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
 import { TermsPage } from './pages/TermsPage';
 
@@ -42,8 +45,11 @@ function App() {
 
   useEffect(() => {
     fetchCart();
-    fetchUser();
-    fetchAddresses();
+    const token = localStorage.getItem('hinchmart_auth_token');
+    if (token) {
+      fetchUser();
+      fetchAddresses();
+    }
   }, [fetchCart, fetchUser, fetchAddresses]);
 
   return (
@@ -59,6 +65,8 @@ function App() {
         <RFQModal />
         <PincodeModal />
         <AuthModal />
+        <VariantSelectModal />
+        <CartSnackbar />
         <ToastContainer />
 
         {/* Main Routed Content */}
@@ -73,8 +81,11 @@ function App() {
             <Route path="/cart" element={<CartPage />} />
             <Route path="/checkout" element={<CheckoutPage />} />
             <Route path="/order-confirmation/:id" element={<OrderConfirmationPage />} />
+            <Route path="/order-confirmation/:orderId" element={<OrderConfirmationPage />} />
             <Route path="/rfq" element={<RFQPage />} />
             <Route path="/orders" element={<OrdersPage />} />
+            <Route path="/estimations" element={<EstimationsPage />} />
+            <Route path="/estimations/:id" element={<EstimationsPage />} />
             <Route path="/invoices" element={<InvoicesPage />} />
             <Route path="/account" element={<AccountPage />} />
             <Route path="/privacy" element={<PrivacyPolicyPage />} />

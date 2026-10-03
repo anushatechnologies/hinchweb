@@ -56,7 +56,8 @@ export const quoteApi = {
     return [];
   },
 
-  async acceptQuote(quoteId: string): Promise<{ quote: Quote; order: Order }> {
+  // 8a. Accept Quote
+  async acceptQuote(quoteId: string | number): Promise<{ quote: Quote; order: Order }> {
     const res = await apiClient.post(`/rfqs/quotes/${quoteId}/accept`);
     if (res.data?.success && res.data?.data) {
       const quote = mapBackendQuote(res.data.data.quote || res.data.data, '');
@@ -65,4 +66,28 @@ export const quoteApi = {
     }
     throw new Error(res.data?.message || 'Failed to accept quote');
   },
+
+  // 8b. Reject Quote
+  // Endpoint: POST /rfqs/quotes/{quoteId}/reject
+  async rejectQuote(quoteId: string | number, reason: string): Promise<boolean> {
+    const res = await apiClient.post(`/rfqs/quotes/${quoteId}/reject`, { reason });
+    return res.data?.success ?? true;
+  },
+
+  // 8c. Counter Offer
+  // Endpoint: POST /rfqs/quotes/{quoteId}/counter
+  async counterQuote(
+    quoteId: string | number,
+    payload: { counterPrice: number; quantity?: number; notes?: string }
+  ): Promise<{ quoteId: number | string; unitPrice: number; totalAmount: number; status: string }> {
+    const res = await apiClient.post(`/rfqs/quotes/${quoteId}/counter`, payload);
+    if (res.data?.success && res.data?.data) {
+      return res.data.data;
+    }
+    if (res.data?.quoteId || res.data?.unitPrice) {
+      return res.data;
+    }
+    throw new Error(res.data?.message || 'Failed to submit counter offer');
+  },
 };
+

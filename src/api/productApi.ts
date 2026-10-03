@@ -1,4 +1,5 @@
 import { apiClient } from '../services/apiClient';
+import { categoryApi } from './categoryApi';
 import type {
   Product,
   ProductFilters,
@@ -82,12 +83,12 @@ export function mapBackendProductToFrontend(raw: any): Product {
     slug: raw.slug || `product-${id}`,
     sku: raw.sku || `SKU-${id}`,
     title: raw.title || raw.productName || '',
-    category: raw.category || raw.categoryName || '',
-    categoryName: raw.categoryName || raw.category || '',
-    categoryId: raw.categoryId || 0,
-    subcategory: raw.subcategory || raw.subcategoryName || '',
-    subcategoryName: raw.subcategoryName || raw.subcategory || '',
-    subcategoryId: raw.subcategoryId || 0,
+    category: typeof raw.category === 'object' ? raw.category?.name || '' : raw.category || raw.categoryName || '',
+    categoryName: typeof raw.categoryName === 'object' ? raw.categoryName?.name || '' : raw.categoryName || raw.category || '',
+    categoryId: raw.categoryId || (typeof raw.category === 'object' ? raw.category?.id || raw.category?.categoryId : 0) || 0,
+    subcategory: typeof raw.subcategory === 'object' ? raw.subcategory?.name || '' : raw.subcategory || raw.subcategoryName || '',
+    subcategoryName: typeof raw.subcategoryName === 'object' ? raw.subcategoryName?.name || '' : raw.subcategoryName || raw.subcategory || '',
+    subcategoryId: raw.subcategoryId || (typeof raw.subcategory === 'object' ? raw.subcategory?.id || raw.subcategory?.subcategoryId : 0) || 0,
     description: raw.description || '',
     images: images.filter(Boolean),
     imageUrl: images[0] || raw.imageUrl || '',
@@ -133,7 +134,24 @@ export const productApi = {
     };
 
     if (filters?.categoryId) params.categoryId = filters.categoryId;
+    if (filters?.category) params.category = filters.category;
     if (filters?.subcategoryId) params.subcategoryId = filters.subcategoryId;
+    if (filters?.subcategory) params.subcategory = filters.subcategory;
+
+    // Resolve numeric categoryId & subcategoryId if only names were supplied
+    if (!params.subcategoryId && filters?.subcategory) {
+      try {
+        const resolvedSubId = await categoryApi.resolveSubcategoryId(String(filters.subcategory));
+        if (resolvedSubId) params.subcategoryId = resolvedSubId;
+      } catch {}
+    }
+    if (!params.categoryId && filters?.category) {
+      try {
+        const resolvedCatId = await categoryApi.resolveCategoryId(String(filters.category));
+        if (resolvedCatId) params.categoryId = resolvedCatId;
+      } catch {}
+    }
+
     if (filters?.brandId) params.brandId = filters.brandId;
     if (filters?.search) params.search = filters.search;
     if (filters?.minPrice !== undefined) params.minPrice = filters.minPrice;

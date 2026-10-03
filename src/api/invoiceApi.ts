@@ -1,4 +1,5 @@
 import { apiClient } from '../services/apiClient';
+import { orderApi, getLocalOrder } from './orderApi';
 import type { TaxInvoice } from '../types';
 
 export function mapBackendInvoice(raw: any): TaxInvoice {
@@ -70,7 +71,28 @@ export function mapBackendInvoice(raw: any): TaxInvoice {
 }
 
 export const invoiceApi = {
-  async getInvoices(): Promise<TaxInvoice[]> {
+  /**
+   * 3a. Get global invoices list
+   * Endpoint: GET /invoices
+   */
+  async getInvoices(params?: {
+    financialYear?: string;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<TaxInvoice[]> {
+    try {
+      const res = await apiClient.get('/invoices', { params });
+      if (res.data?.success && Array.isArray(res.data?.data)) {
+        return res.data.data.map(mapBackendInvoice);
+      }
+      if (Array.isArray(res.data)) {
+        return res.data.map(mapBackendInvoice);
+      }
+    } catch (err) {
+      console.warn('Backend GET /invoices error, trying fallback:', err);
+    }
+
+    // Fallback: load invoices synthesized from orders
     try {
       const res = await apiClient.get('/orders');
       if (res.data?.success && res.data?.data) {
@@ -81,12 +103,19 @@ export const invoiceApi = {
         return res.data.map((o: any) => mapBackendInvoice({ ...o, invoiceNumber: `INV-${o.id || o.orderNumber}` }));
       }
     } catch (err) {
-      console.warn('Backend GET /orders for invoices error:', err);
+      console.warn('Backend GET /orders for invoices fallback error:', err);
     }
     return [];
   },
 
   async getInvoiceById(id: string): Promise<TaxInvoice | null> {
+    const local = getLocalOrder(id);
+    if (local) {
+      try {
+        return await orderApi.getOrderInvoice(id);
+      } catch {}
+    }
+
     try {
       const numId = Number(id.replace(/\D/g, '')) || id;
       const res = await apiClient.get(`/orders/${numId}/invoice`);
@@ -99,6 +128,32 @@ export const invoiceApi = {
     } catch (err) {
       console.warn(`Backend GET /orders/${id}/invoice error:`, err);
     }
+    try {
+      return await orderApi.getOrderInvoice(id);
+    } catch {}
     return null;
   },
+
+  /**
+   * 3b. Download Invoice PDF
+   * Endpoint: GET /invoices/{orderId}/download-pdf
+   */
+  async downloadInvoicePdf(orderId: number | string, customFilename?: string): Promise<Blob> {
+    const res = await apiClient.get(`/invoices/${orderId}/download-pdf`, {
+      responseType: 'blob',
+    });
+
+    const blob = new Blob([res.data], { type: 'application/pdf' });
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = customFilename || `invoice-order-${orderId}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(downloadUrl);
+
+    return blob;
+  },
 };
+

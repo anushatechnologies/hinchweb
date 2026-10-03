@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import type { User, Address } from '../types';
-import { authApi } from '../api/authApi';
+import { authApi, type SyncUserPayload, type ProfileUpdatePayload } from '../api/authApi';
 import { addressApi } from '../api/addressApi';
+import { signOutFirebase } from '../services/firebase';
 
 const emptyUser: User = {
   id: '',
@@ -16,6 +17,7 @@ const emptyUser: User = {
   industry: '',
   isGstVerified: false,
   isApprovedBuyer: false,
+  isProfileComplete: false,
   creditLimit: 0,
   creditAvailable: 0,
   creditDays: 30,
@@ -30,6 +32,14 @@ interface AuthState {
   fetchAddresses: () => Promise<void>;
   sendOtp: (identifier: string) => Promise<{ success: boolean; message: string; otpCode?: string }>;
   verifyOtp: (identifier: string, otpCode: string) => Promise<User>;
+  loginWithFirebaseToken: (token: string, initialDetails?: SyncUserPayload) => Promise<User>;
+  completeProfile: (payload: {
+    name: string;
+    email: string;
+    phone?: string;
+    companyName?: string;
+    gstin?: string;
+  }) => Promise<User>;
   loginWithPassword: (identifier: string, password: string) => Promise<User>;
   logout: () => void;
   updateUser: (updates: Partial<User>) => Promise<void>;
@@ -45,17 +55,39 @@ export const useAuthStore = create<AuthState>((set) => ({
   isAuthenticated: Boolean(localStorage.getItem('hinchmart_auth_token')),
 
   fetchUser: async () => {
+    const token = localStorage.getItem('hinchmart_auth_token');
+    if (!token) {
+      set({ user: emptyUser, isLoading: false, isAuthenticated: false });
+      return;
+    }
     set({ isLoading: true });
     try {
-      const user = await authApi.getProfile();
+      // Endpoint 3: Session Restore via GET /api/auth/me
+      const user = await authApi.getMe();
       set({ user, isLoading: false, isAuthenticated: true });
-    } catch (error) {
-      console.warn('Could not fetch user profile from backend:', error);
-      set({ isLoading: false });
+    } catch (error: any) {
+      console.warn('Session restore via /auth/me notice:', error);
+      if (error?.statusCode === 401) {
+        localStorage.removeItem('hinchmart_auth_token');
+        set({ user: emptyUser, isLoading: false, isAuthenticated: false });
+      } else {
+        try {
+          const syncedUser = await authApi.syncUser();
+          set({ user: syncedUser, isLoading: false, isAuthenticated: true });
+        } catch (syncErr) {
+          console.warn('Sync fallback also failed:', syncErr);
+          set({ isLoading: false });
+        }
+      }
     }
   },
 
   fetchAddresses: async () => {
+    const token = localStorage.getItem('hinchmart_auth_token');
+    if (!token) {
+      set({ addresses: [] });
+      return;
+    }
     try {
       const addresses = await addressApi.getAddresses();
       set({ addresses });
@@ -72,11 +104,64 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isLoading: true });
     try {
       const { user } = await authApi.verifyOtp(identifier, otpCode, 'LOGIN');
+      // Step 4 & 5: Synchronize with backend
+      try {
+        const synced = await authApi.syncUser();
+        set({ user: synced, isLoading: false, isAuthenticated: true });
+        return synced;
+      } catch (syncErr) {
+        console.warn('Backend syncUser notice:', syncErr);
+      }
       set({ user, isLoading: false, isAuthenticated: true });
       return user;
     } catch (error) {
       set({ isLoading: false });
       throw error;
+    }
+  },
+
+  /**
+   * Step 4: Calls POST /api/auth/sync
+   * Header: Authorization: Bearer <firebase_id_token>
+   * Inspects response: if name or email is null, isProfileComplete is false
+   */
+  loginWithFirebaseToken: async (token: string, initialDetails?: SyncUserPayload) => {
+    localStorage.setItem('hinchmart_auth_token', token);
+    set({ isLoading: true });
+    try {
+      const user = await authApi.syncUser(initialDetails || {});
+      set({ user, isLoading: false, isAuthenticated: true });
+      return user;
+    } catch (err: any) {
+      set({ isLoading: false });
+      throw err;
+    }
+  },
+
+  /**
+   * Step 7: Profile Completion (PUT /api/user/profile)
+   */
+  completeProfile: async (payload: {
+    name: string;
+    email: string;
+    phone?: string;
+    companyName?: string;
+    gstin?: string;
+  }) => {
+    set({ isLoading: true });
+    try {
+      const updatedUser = await authApi.updateProfile({
+        name: payload.name,
+        email: payload.email,
+        phone: payload.phone,
+        companyName: payload.companyName,
+        gstNumber: payload.gstin,
+      });
+      set({ user: updatedUser, isLoading: false, isAuthenticated: true });
+      return updatedUser;
+    } catch (err: any) {
+      set({ isLoading: false });
+      throw err;
     }
   },
 
@@ -93,6 +178,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: () => {
+    signOutFirebase().catch(() => {});
     authApi.logout();
     set({ user: emptyUser, isAuthenticated: false, addresses: [] });
   },
@@ -100,7 +186,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   updateUser: async (updates: Partial<User>) => {
     set({ isLoading: true });
     try {
-      const updatedUser = await authApi.updateProfile(updates);
+      const updatedUser = await authApi.updateProfile(updates as ProfileUpdatePayload);
       set({ user: updatedUser, isLoading: false });
     } catch (error) {
       console.error('Failed to update profile', error);

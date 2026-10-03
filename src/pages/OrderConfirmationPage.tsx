@@ -15,29 +15,51 @@ import {
 } from 'lucide-react';
 
 export const OrderConfirmationPage: React.FC = () => {
-  const { orderId } = useParams<{ orderId: string }>();
+  const params = useParams<{ id?: string; orderId?: string }>();
+  const orderId = params.id || params.orderId || '';
+
   const [order, setOrder] = useState<Order | null>(null);
   const [invoice, setInvoice] = useState<TaxInvoice | null>(null);
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (orderId) {
-      orderApi
-        .getOrderById(orderId)
-        .then(async (ord) => {
-          setOrder(ord);
-          if (ord.invoiceId || ord.orderNumber) {
-            const inv = await invoiceApi.getInvoiceById(ord.invoiceId || ord.orderNumber);
+    if (!orderId) {
+      setIsLoading(false);
+      return;
+    }
+
+    let isMounted = true;
+    setIsLoading(true);
+
+    const loadOrder = async () => {
+      try {
+        const ord = await orderApi.getOrderById(orderId);
+        if (!isMounted) return;
+        setOrder(ord);
+
+        try {
+          const inv = await invoiceApi.getInvoiceById(ord.invoiceId || ord.orderNumber || ord.id);
+          if (isMounted && inv) {
             setInvoice(inv);
           }
+        } catch (invErr) {
+          console.warn('Invoice generation notice:', invErr);
+        }
+      } catch (err) {
+        console.error('Failed to load order:', err);
+      } finally {
+        if (isMounted) {
           setIsLoading(false);
-        })
-        .catch((err) => {
-          console.error(err);
-          setIsLoading(false);
-        });
-    }
+        }
+      }
+    };
+
+    loadOrder();
+
+    return () => {
+      isMounted = false;
+    };
   }, [orderId]);
 
   if (isLoading) {

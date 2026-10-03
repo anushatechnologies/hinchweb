@@ -58,10 +58,14 @@ export const Header: React.FC = () => {
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    notificationApi
-      .getNotifications()
-      .then(setNotifications)
-      .catch(console.error);
+    if (isAuthenticated) {
+      notificationApi
+        .getNotifications()
+        .then(setNotifications)
+        .catch(console.error);
+    } else {
+      setNotifications([]);
+    }
 
     categoryApi
       .getCategories()
@@ -150,12 +154,21 @@ export const Header: React.FC = () => {
             AI-Powered Procurement for Your Business. Move Faster. Source Smarter. Scale Seamlessly.
           </span>
         </div>
-        <Link
-          to="/account"
-          className="px-3.5 py-1 bg-white text-red-700 hover:bg-brand-50 text-[11px] font-extrabold rounded-full transition-all shrink-0 shadow-sm"
-        >
-          Explore HinchMart Business
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            to="/estimations"
+            className="px-3 py-1 bg-red-600 hover:bg-red-500 text-white text-[11px] font-extrabold rounded-full transition-all shrink-0 shadow-sm flex items-center gap-1.5"
+          >
+            <Sparkles className="w-3 h-3 text-amber-300 animate-pulse" />
+            <span>AI Estimate & Quotation</span>
+          </Link>
+          <Link
+            to="/account"
+            className="hidden sm:inline-block px-3 py-1 bg-white text-red-700 hover:bg-brand-50 text-[11px] font-extrabold rounded-full transition-all shrink-0 shadow-sm"
+          >
+            Explore Business
+          </Link>
+        </div>
       </div>
 
       {/* Main Navigation Row */}
@@ -481,6 +494,17 @@ export const Header: React.FC = () => {
                     >
                       <Package className="w-4 h-4 text-industrial-500" />
                       <span>My RFQ's</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setIsUserMenuOpen(false);
+                        navigate('/estimations');
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2 hover:bg-industrial-50 hover:text-[#d9232d] transition-colors text-left cursor-pointer font-bold text-brand-700"
+                    >
+                      <Sparkles className="w-4 h-4 text-brand-600" />
+                      <span>AI Estimations & Quotes</span>
                     </button>
 
                     <button

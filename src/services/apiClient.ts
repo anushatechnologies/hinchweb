@@ -5,8 +5,11 @@ export interface ApiErrorResponse {
   statusCode?: number;
   errors?: Record<string, string[]>;
 }
-
-const rawBase = import.meta.env.VITE_API_BASE_URL || 'https://api.hinchmart.com/api';
+// In development, route through Vite proxy (/api) to avoid browser CORS errors
+const isDev = import.meta.env.DEV;
+const rawBase = isDev
+  ? '/api'
+  : (import.meta.env.VITE_API_BASE_URL || 'https://api.hinchmart.com/api');
 const baseURL = rawBase.replace(/\/+$/, '');
 
 export const apiClient: AxiosInstance = axios.create({
@@ -24,13 +27,15 @@ export const getCurrentUserId = (): number => {
     const raw = localStorage.getItem('hinchmart_user');
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (parsed.id) return Number(parsed.id);
+      if (parsed.userId || parsed.id) return Number(parsed.userId || parsed.id);
     }
   } catch (e) {
     // fallback
   }
-  return 4; // Default demo buyer Rajesh Sharma
+  return 0;
 };
+
+import { getFreshFirebaseToken, isFirebaseConfigured } from './firebase';
 
 // Request interceptor: Attach JWT token if present
 apiClient.interceptors.request.use(
@@ -44,10 +49,26 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor: Normalize errors & handle 401
+// Response interceptor: Normalize errors & handle 401 with auto-refresh
 apiClient.interceptors.response.use(
   (response) => response,
-  (error: AxiosError<ApiErrorResponse>) => {
+  async (error: AxiosError<ApiErrorResponse>) => {
+    const originalRequest = error.config as (InternalAxiosRequestConfig & { _retry?: boolean }) | undefined;
+
+    // If 401 Unauthorized and Firebase is configured, try refreshing token once
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry && isFirebaseConfigured) {
+      originalRequest._retry = true;
+      try {
+        const freshToken = await getFreshFirebaseToken(true);
+        if (freshToken && originalRequest.headers) {
+          originalRequest.headers.Authorization = `Bearer ${freshToken}`;
+          return apiClient(originalRequest);
+        }
+      } catch (refreshErr) {
+        console.warn('Firebase token auto-refresh failed:', refreshErr);
+      }
+    }
+
     if (error.response?.status === 401) {
       localStorage.removeItem('hinchmart_auth_token');
       window.dispatchEvent(new CustomEvent('hinchmart:unauthorized'));
@@ -65,3 +86,4 @@ apiClient.interceptors.response.use(
     return Promise.reject(normalizedError);
   }
 );
+

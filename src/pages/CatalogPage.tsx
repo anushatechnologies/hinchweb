@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   FileText,
   Layers,
+  PackageSearch,
 } from 'lucide-react';
 
 export const CatalogPage: React.FC = () => {
@@ -53,15 +54,9 @@ export const CatalogPage: React.FC = () => {
   const [sortBy, setSortBy] = useState<string>(sortParam);
 
   useEffect(() => {
-    if (categoryParam) {
-      setSelectedCategories([categoryParam]);
-    }
-    if (subcategoryParam) {
-      setSelectedSubcategories([subcategoryParam]);
-    }
-    if (brandParam) {
-      setSelectedBrands([brandParam]);
-    }
+    setSelectedCategories(categoryParam ? [categoryParam] : []);
+    setSelectedSubcategories(subcategoryParam ? [subcategoryParam] : []);
+    setSelectedBrands(brandParam ? [brandParam] : []);
     if (fastDeliveryParam) {
       setOnly24HourDelivery(true);
     }
@@ -103,33 +98,131 @@ export const CatalogPage: React.FC = () => {
       });
   }, [searchParam, categoryParam, categoryIdParam, subcategoryParam, subcategoryIdParam, brandParam, brandIdParam, fastDeliveryParam, sortParam]);
 
-  // Derived available subcategories for selected categories
-  const availableSubcategories = useMemo(() => {
-    const subcats: { name: string; categoryName: string; count?: number }[] = [];
-    
-    // 1. From Category objects nested subcategories
-    categories.forEach((cat) => {
-      if (selectedCategories.length === 0 || selectedCategories.includes(cat.name)) {
-        if (cat.subcategories && cat.subcategories.length > 0) {
-          cat.subcategories.forEach((sub) => {
-            if (!subcats.some((s) => s.name.toLowerCase() === sub.name.toLowerCase())) {
-              subcats.push({ name: sub.name, categoryName: cat.name, count: sub.productCount });
-            }
-          });
-        }
-      }
-    });
+  // Derived active category for contextual subcategories
+  const activeCategory = useMemo(() => {
+    // 1. Direct selected category
+    if (selectedCategories.length > 0) {
+      const match = categories.find((c) =>
+        selectedCategories.some((sc) => sc.toLowerCase() === c.name.toLowerCase() || sc.toLowerCase() === c.slug.toLowerCase())
+      );
+      if (match) return match;
+    }
+    if (categoryParam) {
+      const match = categories.find(
+        (c) =>
+          c.name.toLowerCase() === categoryParam.toLowerCase() ||
+          c.slug.toLowerCase() === categoryParam.toLowerCase()
+      );
+      if (match) return match;
+    }
 
-    // 2. From actual products if present
+    // 2. Derive parent category from selected subcategories
+    const activeSub = selectedSubcategories[0] || subcategoryParam;
+    if (activeSub) {
+      const match = categories.find((c) =>
+        c.subcategories?.some(
+          (s) =>
+            s.name.toLowerCase() === activeSub.toLowerCase() ||
+            s.slug.toLowerCase() === activeSub.toLowerCase() ||
+            s.name.toLowerCase().includes(activeSub.toLowerCase())
+        )
+      );
+      if (match) return match;
+    }
+
+    // 3. Derive from currently loaded products
+    if (products.length > 0) {
+      const catCountMap = new Map<string, number>();
+      products.forEach((p) => {
+        const cName = p.categoryName || p.category;
+        if (cName) {
+          catCountMap.set(cName, (catCountMap.get(cName) || 0) + 1);
+        }
+      });
+      let topCat = '';
+      let topCount = 0;
+      catCountMap.forEach((cnt, cName) => {
+        if (cnt > topCount) {
+          topCount = cnt;
+          topCat = cName;
+        }
+      });
+      if (topCat) {
+        const match = categories.find(
+          (c) =>
+            c.name.toLowerCase() === topCat.toLowerCase() ||
+            c.slug.toLowerCase() === topCat.toLowerCase()
+        );
+        if (match) return match;
+      }
+    }
+
+    return null;
+  }, [selectedCategories, categoryParam, selectedSubcategories, subcategoryParam, categories, products]);
+
+  // Derived available subcategories with dynamic product counts
+  const availableSubcategories = useMemo(() => {
+    const subcats: { name: string; categoryName: string; count?: number; subcategoryId?: number }[] = [];
+
+    // Helper: count matching products in currently loaded products list
+    const countInProducts = (subName: string, subId?: number) => {
+      const q = subName.toLowerCase().trim();
+      return products.filter((p) => {
+        if (subId && p.subcategoryId && Number(p.subcategoryId) === Number(subId)) return true;
+        const pSub = (p.subcategoryName || p.subcategory || '').toLowerCase().trim();
+        return pSub === q || pSub.includes(q) || q.includes(pSub);
+      }).length;
+    };
+
+    // If we have an active category context, prioritize its subcategories
+    if (activeCategory && activeCategory.subcategories && activeCategory.subcategories.length > 0) {
+      activeCategory.subcategories.forEach((sub) => {
+        const prodCount = countInProducts(sub.name, sub.subcategoryId);
+        subcats.push({
+          name: sub.name,
+          categoryName: activeCategory.name,
+          count: prodCount > 0 ? prodCount : sub.productCount,
+          subcategoryId: sub.subcategoryId,
+        });
+      });
+    }
+
+    // Also include any subcategories represented in currently loaded products that aren't added yet
     products.forEach((p) => {
       const subName = p.subcategoryName || p.subcategory;
       if (subName && !subcats.some((s) => s.name.toLowerCase() === subName.toLowerCase())) {
-        subcats.push({ name: subName, categoryName: p.categoryName || p.category || '' });
+        const pSubId = typeof p.subcategoryId === 'number' ? p.subcategoryId : undefined;
+        const prodCount = countInProducts(subName, pSubId);
+        subcats.push({
+          name: subName,
+          categoryName: p.categoryName || p.category || '',
+          count: prodCount > 0 ? prodCount : 1,
+          subcategoryId: pSubId,
+        });
       }
     });
 
+    // If still empty (e.g. initial catalog load without category or products yet),
+    // show top subcategories from across all categories
+    if (subcats.length === 0 && categories.length > 0) {
+      categories.forEach((cat) => {
+        if (cat.subcategories && cat.subcategories.length > 0) {
+          cat.subcategories.forEach((sub) => {
+            if (!subcats.some((s) => s.name.toLowerCase() === sub.name.toLowerCase())) {
+              subcats.push({
+                name: sub.name,
+                categoryName: cat.name,
+                count: sub.productCount,
+                subcategoryId: sub.subcategoryId,
+              });
+            }
+          });
+        }
+      });
+    }
+
     return subcats;
-  }, [categories, selectedCategories, products]);
+  }, [activeCategory, categories, products]);
 
   // Filtered & Sorted Products
   const filteredProducts = useMemo(() => {
@@ -143,7 +236,9 @@ export const CatalogPage: React.FC = () => {
           (p.title || '').toLowerCase().includes(q) ||
           (p.brand || '').toLowerCase().includes(q) ||
           (p.category || '').toLowerCase().includes(q) ||
+          (p.categoryName || '').toLowerCase().includes(q) ||
           (p.subcategory && p.subcategory.toLowerCase().includes(q)) ||
+          (p.subcategoryName && p.subcategoryName.toLowerCase().includes(q)) ||
           (p.hsnCode && p.hsnCode.includes(q)) ||
           (p.tags && p.tags.some((t) => t.toLowerCase().includes(q)))
       );
@@ -151,22 +246,27 @@ export const CatalogPage: React.FC = () => {
 
     // Category filter
     if (selectedCategories.length > 0) {
-      result = result.filter((p) =>
-        selectedCategories.some((c) => (p.category || '').toLowerCase().includes(c.toLowerCase()))
-      );
+      result = result.filter((p) => {
+        const pCat = (p.categoryName || p.category || '').toLowerCase();
+        return selectedCategories.some((c) => pCat.includes(c.toLowerCase()));
+      });
     }
 
     // Subcategory filter
     if (selectedSubcategories.length > 0) {
-      result = result.filter((p) =>
-        selectedSubcategories.some((s) => p.subcategory?.toLowerCase().includes(s.toLowerCase()))
-      );
+      result = result.filter((p) => {
+        const pSub = (p.subcategoryName || p.subcategory || '').toLowerCase().trim();
+        return selectedSubcategories.some((s) => {
+          const target = s.toLowerCase().trim();
+          return pSub === target || pSub.includes(target) || target.includes(pSub);
+        });
+      });
     }
 
     // Brand filter
     if (selectedBrands.length > 0) {
       result = result.filter((p) =>
-        selectedBrands.some((b) => p.brand.toLowerCase().includes(b.toLowerCase()))
+        selectedBrands.some((b) => (p.brand || p.brandName || '').toLowerCase().includes(b.toLowerCase()))
       );
     }
 
@@ -216,21 +316,100 @@ export const CatalogPage: React.FC = () => {
   ]);
 
   const toggleCategory = (catName: string) => {
-    setSelectedCategories((prev) =>
-      prev.includes(catName) ? prev.filter((c) => c !== catName) : [...prev, catName]
-    );
+    const isCurrentlySelected = selectedCategories.includes(catName);
+    const nextCats = isCurrentlySelected
+      ? selectedCategories.filter((c) => c !== catName)
+      : [...selectedCategories, catName];
+    setSelectedCategories(nextCats);
+
+    const nextParams = new URLSearchParams(searchParams);
+    if (nextCats.length === 1) {
+      nextParams.set('category', nextCats[0]);
+      const foundCat = categories.find((c) => c.name.toLowerCase() === nextCats[0].toLowerCase());
+      if (foundCat?.categoryId) {
+        nextParams.set('categoryId', String(foundCat.categoryId));
+      }
+    } else {
+      nextParams.delete('category');
+      nextParams.delete('categoryId');
+    }
+    // Reset subcategories when parent category toggled
+    setSelectedSubcategories([]);
+    nextParams.delete('subcategory');
+    nextParams.delete('subcategoryId');
+    setSearchParams(nextParams);
   };
 
-  const toggleSubcategory = (subName: string) => {
-    setSelectedSubcategories((prev) =>
-      prev.includes(subName) ? prev.filter((s) => s !== subName) : [...prev, subName]
+  const toggleSubcategory = (subName: string, subId?: number) => {
+    const isCurrentlySelected = selectedSubcategories.some(
+      (s) => s.toLowerCase() === subName.toLowerCase()
     );
+
+    let nextSubs: string[];
+    if (isCurrentlySelected) {
+      nextSubs = [];
+    } else {
+      nextSubs = [subName];
+    }
+    setSelectedSubcategories(nextSubs);
+
+    const nextParams = new URLSearchParams(searchParams);
+    if (nextSubs.length > 0) {
+      nextParams.set('subcategory', nextSubs[0]);
+      const targetSub = availableSubcategories.find(
+        (s) => s.name.toLowerCase() === nextSubs[0].toLowerCase()
+      );
+      const targetId = subId || targetSub?.subcategoryId;
+      if (targetId) {
+        nextParams.set('subcategoryId', String(targetId));
+      } else {
+        nextParams.delete('subcategoryId');
+      }
+
+      // Check if active brands conflict with the new subcategory
+      if (selectedBrands.length > 0) {
+        const brandStillMatches = products.some(
+          (p) =>
+            (p.subcategoryName || p.subcategory || '').toLowerCase().includes(nextSubs[0].toLowerCase()) &&
+            selectedBrands.some((b) => (p.brand || '').toLowerCase().includes(b.toLowerCase()))
+        );
+        if (!brandStillMatches) {
+          setSelectedBrands([]);
+          nextParams.delete('brand');
+          nextParams.delete('brandId');
+        }
+      }
+    } else {
+      nextParams.delete('subcategory');
+      nextParams.delete('subcategoryId');
+    }
+
+    setSearchParams(nextParams);
+  };
+
+  const clearSubcategories = () => {
+    setSelectedSubcategories([]);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('subcategory');
+    nextParams.delete('subcategoryId');
+    setSearchParams(nextParams);
   };
 
   const toggleBrand = (brandName: string) => {
-    setSelectedBrands((prev) =>
-      prev.includes(brandName) ? prev.filter((b) => b !== brandName) : [...prev, brandName]
-    );
+    const isCurrentlySelected = selectedBrands.includes(brandName);
+    const nextBrands = isCurrentlySelected
+      ? selectedBrands.filter((b) => b !== brandName)
+      : [...selectedBrands, brandName];
+    setSelectedBrands(nextBrands);
+
+    const nextParams = new URLSearchParams(searchParams);
+    if (nextBrands.length === 1) {
+      nextParams.set('brand', nextBrands[0]);
+    } else {
+      nextParams.delete('brand');
+      nextParams.delete('brandId');
+    }
+    setSearchParams(nextParams);
   };
 
   const toggleGstRate = (rate: number) => {
@@ -259,8 +438,8 @@ export const CatalogPage: React.FC = () => {
     dealsParam ||
     Boolean(searchParam);
 
-  // When a subcategory is queried directly, render the Moglix-style Subcategory Landing Page (Screenshots 1-4)
-  if ((subcategoryParam || subcategoryIdParam) && !searchParam) {
+  // When explicitly requested via ?view=landing, render the Moglix-style Subcategory Landing Page
+  if (searchParams.get('view') === 'landing') {
     return <SubcategoryLandingPage />;
   }
 
@@ -342,12 +521,12 @@ export const CatalogPage: React.FC = () => {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-xs font-bold text-industrial-800">
               <Layers className="w-4 h-4 text-brand-600" />
-              <span>Browse Subcategories {selectedCategories.length === 1 ? `in ${selectedCategories[0]}` : ''}</span>
+              <span>Browse Subcategories {activeCategory ? `in ${activeCategory.name}` : ''}</span>
             </div>
             {selectedSubcategories.length > 0 && (
               <button
-                onClick={() => setSelectedSubcategories([])}
-                className="text-[11px] text-rose-600 font-semibold hover:underline"
+                onClick={clearSubcategories}
+                className="text-[11px] text-rose-600 font-semibold hover:underline cursor-pointer"
               >
                 Clear Subcategory Filter
               </button>
@@ -356,11 +535,11 @@ export const CatalogPage: React.FC = () => {
 
           <div className="flex flex-wrap items-center gap-2">
             {availableSubcategories.map((sub, idx) => {
-              const isSelected = selectedSubcategories.includes(sub.name);
+              const isSelected = selectedSubcategories.some((s) => s.toLowerCase() === sub.name.toLowerCase());
               return (
                 <button
                   key={idx}
-                  onClick={() => toggleSubcategory(sub.name)}
+                  onClick={() => toggleSubcategory(sub.name, sub.subcategoryId)}
                   className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                     isSelected
                       ? 'bg-brand-600 text-white shadow-sm ring-1 ring-brand-600'
@@ -549,12 +728,17 @@ export const CatalogPage: React.FC = () => {
                       <div className="flex items-center gap-2">
                         <input
                           type="checkbox"
-                          checked={selectedSubcategories.includes(sub.name)}
-                          onChange={() => toggleSubcategory(sub.name)}
+                          checked={selectedSubcategories.some((s) => s.toLowerCase() === sub.name.toLowerCase())}
+                          onChange={() => toggleSubcategory(sub.name, sub.subcategoryId)}
                           className="w-3.5 h-3.5 text-brand-600 rounded focus:ring-brand-500"
                         />
                         <span className="truncate max-w-[150px]">{sub.name}</span>
                       </div>
+                      {sub.count !== undefined && sub.count > 0 && (
+                        <span className="text-[10px] text-industrial-400 font-mono">
+                          {sub.count}
+                        </span>
+                      )}
                     </label>
                   ))}
                 </div>
@@ -644,7 +828,7 @@ export const CatalogPage: React.FC = () => {
           ) : filteredProducts.length === 0 ? (
             <div className="bg-white rounded-3xl border border-industrial-200 p-12 text-center space-y-4 shadow-card">
               <div className="w-16 h-16 rounded-2xl bg-industrial-100 text-industrial-400 flex items-center justify-center mx-auto text-2xl">
-                ??
+                <PackageSearch className="w-8 h-8 text-industrial-400" />
               </div>
               <div className="space-y-1">
                 <h3 className="text-lg font-bold text-industrial-950">No Materials Found</h3>
