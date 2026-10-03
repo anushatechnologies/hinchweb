@@ -3,7 +3,6 @@ import { useAuthStore } from '../store/useAuthStore';
 import { useToastStore } from '../store/useToastStore';
 import { kycApi } from '../api/kycApi';
 import { uploadApi } from '../api/uploadApi';
-import { formatINR } from '../utils/formatters';
 import type { KYCDocument, KYCDocumentType } from '../types';
 import {
   ShieldCheck,
@@ -16,7 +15,7 @@ export const AccountPage: React.FC = () => {
   const { user, addresses, addAddress, deleteAddress, updateUser } = useAuthStore();
   const { showToast } = useToastStore();
 
-  const [activeTab, setActiveTab] = useState<'profile' | 'credit' | 'addresses' | 'kyc'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'addresses' | 'kyc'>('profile');
   const [isAddingSite, setIsAddingSite] = useState(false);
   const [documents, setDocuments] = useState<KYCDocument[]>([]);
   const [isUploadingDoc, setIsUploadingDoc] = useState(false);
@@ -149,9 +148,6 @@ export const AccountPage: React.FC = () => {
     }
   };
 
-  const creditUtilized = user.creditLimit - user.creditAvailable;
-  const utilizedPercent = Math.round((creditUtilized / user.creditLimit) * 100);
-
   return (
     <div className="max-w-[1720px] w-full mx-auto px-4 sm:px-8 lg:px-12 py-8 space-y-8">
       {/* 1. Header & Enterprise Profile Summary */}
@@ -173,29 +169,35 @@ export const AccountPage: React.FC = () => {
 
             <div className="text-xs text-industrial-400 flex flex-wrap items-center gap-3">
               <span>Primary Representative: <strong className="text-white">{user.fullName || user.name}</strong></span>
-              <span>�</span>
+              <span>•</span>
               <span className="font-mono">GSTIN: <strong className="text-brand-400">{user.gstin}</strong></span>
-              <span>�</span>
+              <span>•</span>
               <span>Type: {user.businessType}</span>
             </div>
           </div>
         </div>
 
-        {/* Quick Credit Line Snapshot */}
-        <div className="p-4 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 text-xs space-y-1.5 shrink-0 min-w-64">
-          <div className="text-[10px] uppercase font-bold text-emerald-400 flex items-center justify-between">
-            <span>Enterprise PayLater Line</span>
-            <span className="bg-emerald-500/20 px-2 py-0.5 rounded text-white">{user.creditDays} Days Credit</span>
+        {/* Account Overview Snapshot */}
+        <div className="p-4 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 text-xs space-y-2 shrink-0 min-w-56">
+          <div className="text-[10px] uppercase font-bold text-industrial-300 flex items-center justify-between">
+            <span>Procurement Account</span>
+            <span className="bg-emerald-500/20 px-2 py-0.5 rounded text-emerald-300 font-bold">Active Buyer</span>
           </div>
-          <div className="text-lg font-black text-white font-mono">
-            {formatINR(user.creditAvailable)}{' '}
-            <span className="text-xs font-normal text-industrial-300">available</span>
-          </div>
-          <div className="w-full bg-industrial-800 h-1.5 rounded-full overflow-hidden">
-            <div
-              className="bg-emerald-500 h-full rounded-full"
-              style={{ width: `${100 - utilizedPercent}%` }}
-            ></div>
+          <div className="flex items-center gap-4">
+            <div>
+              <div className="text-lg font-black text-white font-mono">{addresses.length}</div>
+              <div className="text-[10px] text-industrial-300">Delivery Sites</div>
+            </div>
+            <div className="h-6 w-px bg-white/20"></div>
+            <div>
+              <div className="text-lg font-black text-white font-mono">{user.procurementStats?.totalOrders || 0}</div>
+              <div className="text-[10px] text-industrial-300">Total Orders</div>
+            </div>
+            <div className="h-6 w-px bg-white/20"></div>
+            <div>
+              <div className="text-lg font-black text-white font-mono">{documents.length}</div>
+              <div className="text-[10px] text-industrial-300">KYC Docs</div>
+            </div>
           </div>
         </div>
       </div>
@@ -204,7 +206,6 @@ export const AccountPage: React.FC = () => {
       <div className="flex flex-wrap sm:flex-nowrap gap-2 sm:gap-3 border-b border-industrial-200 pb-2 text-xs font-bold overflow-x-auto">
         {[
           { id: 'profile', label: 'Company Profile & Rep' },
-          { id: 'credit', label: 'Credit Line & Procurement Stats' },
           { id: 'addresses', label: `Delivery Sites & Address Book (${addresses.length})` },
           { id: 'kyc', label: `KYC Compliance Documents (${documents.length})` },
         ].map((tab) => (
@@ -335,31 +336,6 @@ export const AccountPage: React.FC = () => {
                   Approved Tier-1 Gold Buyer
                 </span>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Credit Dashboard Tab */}
-      {activeTab === 'credit' && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-white p-6 rounded-3xl border border-industrial-200 shadow-card space-y-2">
-              <div className="text-xs font-bold text-industrial-500 uppercase tracking-wider">Total Credit Limit</div>
-              <div className="text-2xl font-black text-industrial-950 font-mono">{formatINR(user.creditLimit)}</div>
-              <p className="text-[11px] text-industrial-400">Pre-approved revolving commercial credit line.</p>
-            </div>
-
-            <div className="bg-white p-6 rounded-3xl border border-industrial-200 shadow-card space-y-2">
-              <div className="text-xs font-bold text-emerald-600 uppercase tracking-wider">Available Balance</div>
-              <div className="text-2xl font-black text-emerald-600 font-mono">{formatINR(user.creditAvailable)}</div>
-              <p className="text-[11px] text-industrial-400">Instantly available at checkout with 0% interest for 45 days.</p>
-            </div>
-
-            <div className="bg-white p-6 rounded-3xl border border-industrial-200 shadow-card space-y-2">
-              <div className="text-xs font-bold text-amber-600 uppercase tracking-wider">Credit Utilized</div>
-              <div className="text-2xl font-black text-amber-600 font-mono">{formatINR(creditUtilized)}</div>
-              <p className="text-[11px] text-industrial-400">Allocated across active project delivery dispatches.</p>
             </div>
           </div>
 

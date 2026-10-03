@@ -61,7 +61,7 @@ export const CheckoutPage: React.FC = () => {
   const [billingAddressId, setBillingAddressId] = useState<string>(
     addresses[2]?.id || addresses[0]?.id || ''
   );
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('pay_later');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('bank_transfer');
   const [isProcessing, setIsProcessing] = useState(false);
 
   // New address modal state
@@ -220,7 +220,7 @@ export const CheckoutPage: React.FC = () => {
                 <div>
                   <h4 className="text-xs font-bold text-amber-950">Enterprise Account Login Recommended</h4>
                   <p className="text-[11px] text-amber-800">
-                    Sign in with your mobile OTP to link your registered GSTIN, auto-save delivery sites, and activate 30-day payment credit terms.
+                    Sign in with your mobile OTP to link your registered GSTIN, auto-save delivery sites, and access wholesale pricing.
                   </p>
                 </div>
               </div>
@@ -369,66 +369,14 @@ export const CheckoutPage: React.FC = () => {
                 3
               </div>
               <div>
-                <h3 className="font-bold text-sm text-industrial-950">Payment & Financing Terms</h3>
+                <h3 className="font-bold text-sm text-industrial-950">Payment Method</h3>
                 <p className="text-[11px] text-industrial-500">
-                  Select payment method or utilize your approved enterprise revolving credit
+                  Select payment method for automated GST tax invoice dispatch
                 </p>
               </div>
             </div>
 
             <div className="space-y-3">
-              {/* Option 1: HinchMart PayLater (Recommended) */}
-              <div
-                onClick={() => setPaymentMethod('pay_later')}
-                className={`p-4 rounded-2xl border cursor-pointer transition-all space-y-3 ${
-                  paymentMethod === 'pay_later'
-                    ? 'border-brand-500 bg-brand-50/60 ring-2 ring-brand-500/20'
-                    : 'border-industrial-200 hover:border-industrial-300 bg-white'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-brand-600 text-white flex items-center justify-center shadow-sm">
-                      <ShieldCheck className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-xs text-industrial-950">
-                          HinchMart Enterprise PayLater (45 Days Credit)
-                        </span>
-                        <span className="text-[10px] font-extrabold bg-brand-500 text-white px-2 py-0.5 rounded-full">
-                          APPROVED BUYER
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-industrial-500">
-                        0% interest for 45 days. Automatic invoice factoring upon delivery.
-                      </p>
-                    </div>
-                  </div>
-                  {paymentMethod === 'pay_later' && (
-                    <CheckCircle2 className="w-5 h-5 text-brand-600" />
-                  )}
-                </div>
-
-                <div className="p-3 bg-white/90 rounded-xl border border-brand-200 text-xs space-y-2">
-                  <div className="flex justify-between text-industrial-700">
-                    <span>Revolving Credit Limit:</span>
-                    <span className="font-bold">{formatINR(user.creditLimit)}</span>
-                  </div>
-                  <div className="flex justify-between text-industrial-700">
-                    <span>Available Credit Balance:</span>
-                    <span className="font-mono font-bold text-emerald-700">
-                      {formatINR(user.creditAvailable)}
-                    </span>
-                  </div>
-                  <div className="w-full bg-industrial-200 h-2 rounded-full overflow-hidden">
-                    <div
-                      className="bg-emerald-600 h-full rounded-full"
-                      style={{ width: `${(user.creditAvailable / user.creditLimit) * 100}%` }}
-                    ></div>
-                  </div>
-                </div>
-              </div>
 
               {/* Option 2: Corporate Netbanking & RTGS / NEFT */}
               <div

@@ -14,7 +14,6 @@ import {
   Flame,
   ChevronRight,
   ChevronLeft,
-  Award,
   Layers,
 } from 'lucide-react';
 
@@ -387,11 +386,11 @@ export const HomePage: React.FC = () => {
               </button>
 
               <Link
-                to="/account"
+                to="/estimations"
                 className="px-5 py-3 rounded-xl bg-brand-800/80 hover:bg-brand-800 text-white font-bold text-xs border border-brand-500/40 transition-colors flex items-center gap-2"
               >
-                <Award className="w-4 h-4 text-brand-300" />
-                <span>Revolving Credit</span>
+                <Sparkles className="w-4 h-4 text-brand-300" />
+                <span>AI Estimation</span>
               </Link>
             </div>
           </div>
