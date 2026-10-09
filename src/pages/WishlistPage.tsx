@@ -6,6 +6,7 @@ import { useCartStore } from '../store/useCartStore';
 import { useToastStore } from '../store/useToastStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { useAuthModalStore } from '../store/useAuthModalStore';
+import { tokenStorage } from '../services/tokenStorage';
 import { formatINR } from '../utils/formatters';
 
 export const WishlistPage: React.FC = () => {
@@ -58,7 +59,7 @@ export const WishlistPage: React.FC = () => {
     }
   };
 
-  if (!isAuthenticated && !localStorage.getItem('hinchmart_auth_token')) {
+  if (!isAuthenticated && !tokenStorage.hasToken()) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="bg-white rounded-3xl p-12 text-center max-w-xl mx-auto shadow-sm border border-industrial-200">
