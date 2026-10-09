@@ -74,8 +74,24 @@ export async function getFreshFirebaseToken(forceRefresh = false): Promise<strin
 /**
  * Setup invisible or visible RecaptchaVerifier for Phone OTP verification
  */
+let activeRecaptchaVerifier: RecaptchaVerifier | null = null;
+
+export function clearRecaptchaVerifier(): void {
+  if (activeRecaptchaVerifier) {
+    try {
+      activeRecaptchaVerifier.clear();
+    } catch {
+      // ignore
+    }
+    activeRecaptchaVerifier = null;
+  }
+}
+
+/**
+ * Setup invisible or visible RecaptchaVerifier for Phone OTP verification
+ */
 export function createRecaptchaVerifier(
-  containerId: string | HTMLElement,
+  containerId: string | HTMLElement = 'recaptcha-container',
   options?: {
     size?: 'invisible' | 'normal' | 'compact';
     callback?: (response: unknown) => void;
@@ -83,6 +99,9 @@ export function createRecaptchaVerifier(
   }
 ): RecaptchaVerifier | null {
   if (!auth) return null;
+
+  clearRecaptchaVerifier();
+
   let target: string | HTMLElement = containerId;
   if (typeof containerId === 'string') {
     let el = document.getElementById(containerId);
@@ -90,14 +109,22 @@ export function createRecaptchaVerifier(
       el = document.createElement('div');
       el.id = containerId;
       document.body.appendChild(el);
+    } else {
+      el.innerHTML = '';
     }
     target = el;
   }
-  return new RecaptchaVerifier(auth, target, {
+
+  activeRecaptchaVerifier = new RecaptchaVerifier(auth, target, {
     size: options?.size || 'invisible',
     callback: options?.callback,
-    'expired-callback': options?.['expired-callback'],
+    'expired-callback': () => {
+      clearRecaptchaVerifier();
+      options?.['expired-callback']?.();
+    },
   });
+
+  return activeRecaptchaVerifier;
 }
 
 /**
@@ -115,6 +142,14 @@ export async function sendFirebasePhoneOtp(
   if (!formattedPhone.startsWith('+')) {
     formattedPhone = `+91${formattedPhone.replace(/\D/g, '')}`;
   }
+
+  // Pre-render verifier to ensure reCAPTCHA widget is ready before dispatch
+  try {
+    await verifier.render();
+  } catch (renderErr) {
+    console.warn('[Firebase] verifier.render warning:', renderErr);
+  }
+
   return signInWithPhoneNumber(auth, formattedPhone, verifier);
 }
 

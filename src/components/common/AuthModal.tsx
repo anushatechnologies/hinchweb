@@ -161,12 +161,21 @@ export const AuthModal: React.FC = () => {
         return;
       }
 
-      const verifier = createRecaptchaVerifier('recaptcha-container', { size: 'invisible' });
+      let verifier = createRecaptchaVerifier('recaptcha-container', { size: 'invisible' });
       if (!verifier) {
         throw new Error('Unable to initialize reCAPTCHA verifier for phone authentication.');
       }
 
-      const confirmation = await sendFirebasePhoneOtp(formattedPhone, verifier);
+      let confirmation;
+      try {
+        confirmation = await sendFirebasePhoneOtp(formattedPhone, verifier);
+      } catch (phoneErr: any) {
+        console.warn('[Firebase] Invisible reCAPTCHA verification failed, trying visible widget:', phoneErr);
+        const visibleVerifier = createRecaptchaVerifier('recaptcha-container', { size: 'normal' });
+        if (!visibleVerifier) throw phoneErr;
+        confirmation = await sendFirebasePhoneOtp(formattedPhone, visibleVerifier);
+      }
+
       setConfirmationResult(confirmation);
       setProfilePhone(formattedPhone);
       setOtpStep('verify');
@@ -214,12 +223,21 @@ export const AuthModal: React.FC = () => {
         return;
       }
 
-      const verifier = createRecaptchaVerifier('recaptcha-container', { size: 'invisible' });
+      let verifier = createRecaptchaVerifier('recaptcha-container', { size: 'invisible' });
       if (!verifier) {
         throw new Error('Unable to initialize reCAPTCHA verifier for phone authentication.');
       }
 
-      const confirmation = await sendFirebasePhoneOtp(formattedPhone, verifier);
+      let confirmation;
+      try {
+        confirmation = await sendFirebasePhoneOtp(formattedPhone, verifier);
+      } catch (phoneErr: any) {
+        console.warn('[Firebase] Invisible reCAPTCHA verification failed, trying visible widget:', phoneErr);
+        const visibleVerifier = createRecaptchaVerifier('recaptcha-container', { size: 'normal' });
+        if (!visibleVerifier) throw phoneErr;
+        confirmation = await sendFirebasePhoneOtp(formattedPhone, visibleVerifier);
+      }
+
       setConfirmationResult(confirmation);
       setProfilePhone(formattedPhone);
       setOtpStep('verify');
@@ -639,7 +657,8 @@ export const AuthModal: React.FC = () => {
                   onChange={(e) => setProfileGstin(e.target.value.toUpperCase())}
                   className="w-full px-3.5 py-2.5 bg-industrial-50 border border-industrial-300 rounded-xl text-xs font-mono text-industrial-900 font-medium uppercase focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white"
                 />
-              </div>
+              {/* reCAPTCHA Mount Container */}
+              <div id="recaptcha-container" className="my-1 empty:hidden flex justify-center" />
 
               <div className="flex gap-2.5 pt-2">
                 <button
@@ -811,7 +830,8 @@ export const AuthModal: React.FC = () => {
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                     <span>Existing account detected. Sign in with OTP.</span>
                   </div>
-                )}
+                {/* reCAPTCHA Mount Container */}
+                <div id="recaptcha-container" className="my-1 empty:hidden flex justify-center" />
 
                 <div className="flex gap-2.5">
                   <button
