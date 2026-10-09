@@ -919,8 +919,14 @@ export const EstimationsPage: React.FC = () => {
         isOpen={isQuotationModalOpen}
         estimation={currentEstimation}
         onClose={() => setIsQuotationModalOpen(false)}
-        onDownloadPdf={() => {
-          showToast('success', 'Quotation PDF downloaded to your device.', 'PDF Export');
+        onDownloadPdf={async () => {
+          if (!currentEstimation) return;
+          try {
+            await estimationApi.downloadQuotationPdf(currentEstimation.id);
+            showToast('success', 'Quotation PDF downloaded to your device.', 'PDF Export');
+          } catch (err: any) {
+            showToast('error', err?.message || 'Failed to download quotation PDF', 'PDF Error');
+          }
         }}
       />
     </div>

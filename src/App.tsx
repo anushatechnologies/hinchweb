@@ -10,6 +10,7 @@ import { AuthModal } from './components/common/AuthModal';
 import { ToastContainer } from './components/common/ToastContainer';
 import { VariantSelectModal } from './components/common/VariantSelectModal';
 import { CartSnackbar } from './components/common/CartSnackbar';
+import { ProtectedRoute } from './components/auth/ProtectedRoute';
 
 import { HomePage } from './pages/HomePage';
 import { CategoryLandingPage } from './pages/CategoryLandingPage';
@@ -23,12 +24,18 @@ import { RFQPage } from './pages/RFQPage';
 import { OrdersPage } from './pages/OrdersPage';
 import { InvoicesPage } from './pages/InvoicesPage';
 import { AccountPage } from './pages/AccountPage';
+import { WishlistPage } from './pages/WishlistPage';
 import { EstimationsPage } from './pages/EstimationsPage';
 import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
 import { TermsPage } from './pages/TermsPage';
+import { AdminPanel } from './pages/AdminPanel';
+import { LoginPage } from './pages/LoginPage';
+import { RegisterPage } from './pages/RegisterPage';
+import { AccessDeniedPage } from './pages/AccessDeniedPage';
 
 import { useCartStore } from './store/useCartStore';
 import { useAuthStore } from './store/useAuthStore';
+import { useWishlistStore } from './store/useWishlistStore';
 
 // Scroll to top on route change
 function ScrollToTop() {
@@ -41,16 +48,14 @@ function ScrollToTop() {
 
 function App() {
   const { fetchCart } = useCartStore();
-  const { fetchUser, fetchAddresses } = useAuthStore();
+  const { initAuth } = useAuthStore();
+  const { fetchWishlist } = useWishlistStore();
 
   useEffect(() => {
     fetchCart();
-    const token = localStorage.getItem('hinchmart_auth_token');
-    if (token) {
-      fetchUser();
-      fetchAddresses();
-    }
-  }, [fetchCart, fetchUser, fetchAddresses]);
+    initAuth();
+    fetchWishlist();
+  }, [fetchCart, initAuth, fetchWishlist]);
 
   return (
     <BrowserRouter>
@@ -72,24 +77,94 @@ function App() {
         {/* Main Routed Content */}
         <main className="flex-1">
           <Routes>
+            {/* Public Routes */}
             <Route path="/" element={<HomePage />} />
             <Route path="/category/:categorySlug" element={<CategoryLandingPage />} />
             <Route path="/category/:categorySlug/:subcategorySlug" element={<SubcategoryLandingPage />} />
             <Route path="/subcategory/:subcategorySlug" element={<SubcategoryLandingPage />} />
             <Route path="/catalog" element={<CatalogPage />} />
             <Route path="/product/:id" element={<ProductDetailPage />} />
+            <Route path="/product/slug/:slug" element={<ProductDetailPage />} />
             <Route path="/cart" element={<CartPage />} />
-            <Route path="/checkout" element={<CheckoutPage />} />
-            <Route path="/order-confirmation/:id" element={<OrderConfirmationPage />} />
-            <Route path="/order-confirmation/:orderId" element={<OrderConfirmationPage />} />
             <Route path="/rfq" element={<RFQPage />} />
-            <Route path="/orders" element={<OrdersPage />} />
             <Route path="/estimations" element={<EstimationsPage />} />
             <Route path="/estimations/:id" element={<EstimationsPage />} />
-            <Route path="/invoices" element={<InvoicesPage />} />
-            <Route path="/account" element={<AccountPage />} />
             <Route path="/privacy" element={<PrivacyPolicyPage />} />
             <Route path="/terms" element={<TermsPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/signup" element={<RegisterPage />} />
+            <Route path="/access-denied" element={<AccessDeniedPage />} />
+
+            {/* Authenticated Customer Routes */}
+            <Route
+              path="/account"
+              element={
+                <ProtectedRoute allowedRoles={['CUSTOMER', 'BUYER', 'SELLER', 'ADMIN']}>
+                  <AccountPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/checkout"
+              element={
+                <ProtectedRoute allowedRoles={['CUSTOMER', 'BUYER', 'SELLER', 'ADMIN']}>
+                  <CheckoutPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/orders"
+              element={
+                <ProtectedRoute allowedRoles={['CUSTOMER', 'BUYER', 'SELLER', 'ADMIN']}>
+                  <OrdersPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/order-confirmation/:id"
+              element={
+                <ProtectedRoute allowedRoles={['CUSTOMER', 'BUYER', 'SELLER', 'ADMIN']}>
+                  <OrderConfirmationPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/order-confirmation/:orderId"
+              element={
+                <ProtectedRoute allowedRoles={['CUSTOMER', 'BUYER', 'SELLER', 'ADMIN']}>
+                  <OrderConfirmationPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/invoices"
+              element={
+                <ProtectedRoute allowedRoles={['CUSTOMER', 'BUYER', 'SELLER', 'ADMIN']}>
+                  <InvoicesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/wishlist"
+              element={
+                <ProtectedRoute allowedRoles={['CUSTOMER', 'BUYER', 'SELLER', 'ADMIN']}>
+                  <WishlistPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Protected Admin Routes */}
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute allowedRoles={['ADMIN']}>
+                  <AdminPanel />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>

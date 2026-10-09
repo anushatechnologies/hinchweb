@@ -1,12 +1,12 @@
 import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 import {
   getAuth,
-  onIdTokenChanged,
   signInWithPhoneNumber,
   RecaptchaVerifier,
   GoogleAuthProvider,
   signInWithPopup,
   signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
   signOut,
   type Auth,
   type User as FirebaseUser,
@@ -35,24 +35,6 @@ if (isFirebaseConfigured) {
   try {
     app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
     auth = getAuth(app);
-
-    // Keep token refreshed automatically in localStorage so requests never fail with 401
-    onIdTokenChanged(auth, async (user: FirebaseUser | null) => {
-      if (user) {
-        try {
-          const freshToken = await user.getIdToken();
-          localStorage.setItem('hinchmart_auth_token', freshToken);
-        } catch (tokenErr) {
-          console.warn('[Firebase] Error refreshing ID token:', tokenErr);
-        }
-      } else {
-        // If user logged out of Firebase and the existing token was a Firebase JWT, clear it
-        const currentToken = localStorage.getItem('hinchmart_auth_token');
-        if (currentToken && !currentToken.startsWith('jwt_demo_')) {
-          localStorage.removeItem('hinchmart_auth_token');
-        }
-      }
-    });
   } catch (err) {
     console.error('[Firebase] Initialization error:', err);
   }
@@ -72,20 +54,20 @@ export function getCurrentFirebaseUser(): FirebaseUser | null {
 }
 
 /**
- * Retrieve a fresh Firebase ID Token.
- * If forceRefresh is true, forces token renewal with Firebase Auth servers.
+ * Retrieve a fresh Firebase ID Token using the Firebase SDK.
+ * Used exclusively for exchanging with backend /api/auth/sync.
+ * If forceRefresh is true, forces renewal with Firebase Auth servers.
  */
 export async function getFreshFirebaseToken(forceRefresh = false): Promise<string | null> {
   if (!auth?.currentUser) {
-    return localStorage.getItem('hinchmart_auth_token');
+    return null;
   }
   try {
     const token = await auth.currentUser.getIdToken(forceRefresh);
-    localStorage.setItem('hinchmart_auth_token', token);
     return token;
   } catch (err) {
     console.warn('[Firebase] getIdToken error:', err);
-    return localStorage.getItem('hinchmart_auth_token');
+    return null;
   }
 }
 
@@ -96,7 +78,7 @@ export function createRecaptchaVerifier(
   containerId: string | HTMLElement,
   options?: {
     size?: 'invisible' | 'normal' | 'compact';
-    callback?: (response: any) => void;
+    callback?: (response: unknown) => void;
     'expired-callback'?: () => void;
   }
 ): RecaptchaVerifier | null {
@@ -127,51 +109,105 @@ export async function sendFirebasePhoneOtp(
 }
 
 /**
- * Confirm Phone OTP via Firebase
+ * Confirm Phone OTP via Firebase and return credential and ID token.
+ * Note: The ID token is used for backend token exchange, NOT saved as the HinchMart JWT.
  */
 export async function confirmFirebasePhoneOtp(
   confirmationResult: ConfirmationResult,
   otp: string
-): Promise<UserCredential> {
+): Promise<{ credential: UserCredential; idToken: string }> {
   const credential = await confirmationResult.confirm(otp);
-  const token = await credential.user.getIdToken();
-  localStorage.setItem('hinchmart_auth_token', token);
-  return credential;
+  const idToken = await credential.user.getIdToken();
+  return { credential, idToken };
 }
 
 /**
  * Google Sign-in with Firebase
  */
-export async function signInWithGoogle(): Promise<UserCredential> {
+export async function signInWithGoogle(): Promise<{ credential: UserCredential; idToken: string }> {
   if (!auth) {
     throw new Error('Firebase Auth is not initialized. Please configure Firebase in .env');
   }
   const provider = new GoogleAuthProvider();
   const credential = await signInWithPopup(auth, provider);
-  const token = await credential.user.getIdToken();
-  localStorage.setItem('hinchmart_auth_token', token);
-  return credential;
+  const idToken = await credential.user.getIdToken();
+  return { credential, idToken };
 }
 
 /**
  * Email & Password Sign-in with Firebase
  */
-export async function signInWithEmail(email: string, password: string): Promise<UserCredential> {
+export async function signInWithEmail(
+  email: string,
+  password: string
+): Promise<{ credential: UserCredential; idToken: string }> {
   if (!auth) {
     throw new Error('Firebase Auth is not initialized. Please configure Firebase in .env');
   }
   const credential = await signInWithEmailAndPassword(auth, email, password);
-  const token = await credential.user.getIdToken();
-  localStorage.setItem('hinchmart_auth_token', token);
-  return credential;
+  const idToken = await credential.user.getIdToken();
+  return { credential, idToken };
 }
 
 /**
- * Sign out from Firebase
+ * Email & Password Registration with Firebase
+ */
+export async function registerWithEmail(
+  email: string,
+  password: string
+): Promise<{ credential: UserCredential; idToken: string }> {
+  if (!auth) {
+    throw new Error('Firebase Auth is not initialized. Please configure Firebase in .env');
+  }
+  const credential = await createUserWithEmailAndPassword(auth, email, password);
+  const idToken = await credential.user.getIdToken();
+  return { credential, idToken };
+}
+
+/**
+ * Sign out from Firebase Auth
  */
 export async function signOutFirebase(): Promise<void> {
   if (auth) {
     await signOut(auth);
   }
-  localStorage.removeItem('hinchmart_auth_token');
+}
+
+/**
+ * Maps Firebase Auth error codes into friendly user messages
+ */
+export function getFriendlyFirebaseErrorMessage(err: unknown): string {
+  if (!err || typeof err !== 'object') {
+    return 'An unexpected authentication error occurred.';
+  }
+  const code = (err as { code?: string }).code || '';
+  const message = (err as { message?: string }).message || '';
+
+  switch (code) {
+    case 'auth/invalid-verification-code':
+      return 'The verification code you entered is invalid. Please double check and try again.';
+    case 'auth/code-expired':
+      return 'The verification code has expired. Please request a new code.';
+    case 'auth/too-many-requests':
+      return 'Too many attempts. Access has been temporarily restricted for security. Please try again later.';
+    case 'auth/user-disabled':
+      return 'This account has been disabled. Please contact HinchMart support.';
+    case 'auth/invalid-phone-number':
+      return 'Please enter a valid 10-digit mobile phone number.';
+    case 'auth/popup-closed-by-user':
+      return 'Sign-in window was closed before completing authentication.';
+    case 'auth/user-not-found':
+      return 'No account found matching these credentials.';
+    case 'auth/wrong-password':
+    case 'auth/invalid-credential':
+      return 'Invalid email or password.';
+    case 'auth/email-already-in-use':
+      return 'This email address is already registered to another account.';
+    case 'auth/weak-password':
+      return 'Password is too weak. Please choose at least 6 characters.';
+    case 'auth/network-request-failed':
+      return 'Network connection error. Please verify your internet connection.';
+    default:
+      return message || 'Authentication failed. Please try again.';
+  }
 }

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { categoryApi } from '../api/categoryApi';
+import { subcategoryApi } from '../api/subcategoryApi';
 import { brandApi } from '../api/brandApi';
 import { productApi } from '../api/productApi';
 import type { Category, Subcategory, Brand, Product } from '../types';
@@ -91,6 +92,25 @@ export const SubcategoryLandingPage: React.FC = () => {
             ) || null;
         }
 
+        if (!currentSub && subcategorySlug) {
+          try {
+            currentSub = await subcategoryApi.getSubcategoryBySlug(subcategorySlug);
+          } catch {}
+        }
+
+        if (!currentSub) {
+          const resolvedSubId = await categoryApi.resolveSubcategoryId(resolvedSubName || subcategorySlug || '');
+          if (resolvedSubId) {
+            try {
+              currentSub = await subcategoryApi.getSubcategoryById(resolvedSubId);
+            } catch {
+              try {
+                currentSub = await categoryApi.getSubcategoryById(resolvedSubId);
+              } catch {}
+            }
+          }
+        }
+
         if (!currentSub && resolvedSubName) {
           currentSub = {
             id: `sub_${resolvedSubName}`,
@@ -167,6 +187,18 @@ export const SubcategoryLandingPage: React.FC = () => {
 
         setBrands(Array.from(brandMap.values()));
         setProducts(fetchedProds);
+
+        // Fetch selected brand details if brand query filter is present
+        if (selectedBrandParam) {
+          try {
+            const brandDetail = await brandApi.getBrandBySlug(selectedBrandParam);
+            if (brandDetail?.brandId) {
+              try {
+                await brandApi.getBrandById(brandDetail.brandId);
+              } catch {}
+            }
+          } catch {}
+        }
       } catch (err) {
         console.error('Error loading subcategory landing page:', err);
       } finally {

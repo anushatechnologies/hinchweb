@@ -55,6 +55,8 @@ export const RFQPage: React.FC = () => {
   const handleSelectRfq = async (rfq: RFQ) => {
     setSelectedRfq(rfq);
     try {
+      const detailed = await rfqApi.getRFQById(rfq.id);
+      if (detailed) setSelectedRfq(detailed);
       const qList = await quoteApi.getQuotesForRFQ(rfq.id);
       setQuotes(qList);
     } catch (err) {

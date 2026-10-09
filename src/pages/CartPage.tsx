@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCartStore } from '../store/useCartStore';
 import { formatINR } from '../utils/formatters';
+import { couponApi } from '../api/couponApi';
+import type { EligibleCoupon, CustomerDiscount, Coupon } from '../types';
 import {
   Trash2,
   Plus,
@@ -12,6 +14,9 @@ import {
   ArrowLeft,
   Percent,
   CheckCircle2,
+  Sparkles,
+  AlertCircle,
+  Award,
 } from 'lucide-react';
 
 export const CartPage: React.FC = () => {
@@ -20,10 +25,19 @@ export const CartPage: React.FC = () => {
 
   const [couponInput, setCouponInput] = useState('');
   const [couponMessage, setCouponMessage] = useState<{ text: string; isError: boolean } | null>(null);
+  const [eligibleCoupons, setEligibleCoupons] = useState<EligibleCoupon[]>([]);
+  const [customerDiscounts, setCustomerDiscounts] = useState<CustomerDiscount[]>([]);
+  const [allCoupons, setAllCoupons] = useState<Coupon[]>([]);
 
   useEffect(() => {
     fetchCart();
   }, [fetchCart]);
+
+  useEffect(() => {
+    couponApi.getEligibleCoupons(cart.subtotal).then(setEligibleCoupons).catch(() => {});
+    couponApi.getCustomerDiscounts().then(setCustomerDiscounts).catch(() => {});
+    couponApi.getCoupons().then(setAllCoupons).catch(() => {});
+  }, [cart.subtotal]);
 
   const handleApplyCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -256,6 +270,243 @@ export const CartPage: React.FC = () => {
                 </div>
               )}
             </form>
+
+            {/* Active Evaluated Cart Coupons */}
+            {eligibleCoupons.length > 0 && (
+              <div className="space-y-2 pt-1">
+                <div className="text-[11px] font-bold text-industrial-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-brand-600" />
+                  <span>Eligible Cart Promos & Discounts</span>
+                </div>
+                <div className="space-y-2">
+                  {eligibleCoupons.map((coupon) => {
+                    const isApplied =
+                      cart.appliedCoupon?.code === coupon.code ||
+                      cart.appliedCoupon === coupon.code;
+                    return (
+                      <div
+                        key={coupon.code}
+                        className={`p-3 rounded-2xl border transition-all text-xs flex flex-col gap-2 ${
+                          isApplied
+                            ? 'bg-emerald-50 border-emerald-300 ring-1 ring-emerald-400'
+                            : coupon.isApplicable
+                            ? 'bg-industrial-50/70 border-industrial-200 hover:border-brand-300'
+                            : 'bg-industrial-50/40 border-industrial-200/60 opacity-80'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 space-y-0.5">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-black text-brand-700 bg-brand-50 border border-brand-200 px-2 py-0.5 rounded text-[11px]">
+                                {coupon.code}
+                              </span>
+                              <span className="font-bold text-industrial-950 truncate">
+                                {coupon.title}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-industrial-600">
+                              {coupon.description}
+                            </p>
+                          </div>
+
+                          <button
+                            type="button"
+                            disabled={isApplied || !coupon.isApplicable}
+                            onClick={async () => {
+                              setCouponInput(coupon.code);
+                              const res = await applyCoupon(coupon.code);
+                              if (res.success) {
+                                setCouponMessage({ text: res.message, isError: false });
+                                setCouponInput('');
+                              } else {
+                                setCouponMessage({ text: res.message, isError: true });
+                              }
+                            }}
+                            className={`px-3 py-1 rounded-xl text-xs font-bold shrink-0 transition-all cursor-pointer ${
+                              isApplied
+                                ? 'bg-emerald-600 text-white cursor-default'
+                                : coupon.isApplicable
+                                ? 'bg-industrial-900 hover:bg-brand-600 text-white shadow-sm'
+                                : 'bg-industrial-200 text-industrial-400 cursor-not-allowed'
+                            }`}
+                          >
+                            {isApplied ? 'Applied' : 'Apply'}
+                          </button>
+                        </div>
+
+                        {/* Status Note: Savings vs Shortfall */}
+                        <div className="pt-1.5 border-t border-industrial-100 flex items-center justify-between text-[10px]">
+                          {coupon.isApplicable ? (
+                            <span className="text-emerald-700 font-bold flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              <span>Eligible for {formatINR(coupon.estimatedDiscount)} discount</span>
+                            </span>
+                          ) : (
+                            <span className="text-amber-700 font-medium flex items-center gap-1">
+                              <AlertCircle className="w-3 h-3 text-amber-600 shrink-0" />
+                              <span>Add {formatINR(coupon.shortfallAmount)} more to unlock</span>
+                            </span>
+                          )}
+                          <span className="text-industrial-400 font-mono">
+                            Min Order: {formatINR(coupon.minOrderAmount)}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Approved Buyer Commercial Discounts */}
+            {customerDiscounts.length > 0 && (
+              <div className="space-y-2 pt-3 border-t border-industrial-100">
+                <div className="text-[11px] font-bold text-industrial-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <Award className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Approved Buyer Commercial Discounts</span>
+                </div>
+                <div className="space-y-2">
+                  {customerDiscounts.map((disc) => {
+                    const isApplied =
+                      cart.appliedCoupon?.code === disc.code ||
+                      cart.appliedCoupon === disc.code;
+                    const isMinMet = (cart.subtotal || 0) >= (disc.minimumOrderAmount || 0);
+
+                    return (
+                      <div
+                        key={disc.code || disc.discountId}
+                        className={`p-3 rounded-2xl border transition-all text-xs flex flex-col gap-2 ${
+                          isApplied
+                            ? 'bg-emerald-50 border-emerald-300 ring-1 ring-emerald-400'
+                            : isMinMet
+                            ? 'bg-amber-50/50 border-amber-200 hover:border-amber-300'
+                            : 'bg-industrial-50/40 border-industrial-200/60 opacity-80'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 space-y-0.5">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-black text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded text-[11px]">
+                                {disc.code}
+                              </span>
+                              <span className="font-bold text-industrial-950 truncate">
+                                {disc.discountType === 'PERCENTAGE'
+                                  ? `${disc.discountValue}% Commercial Discount`
+                                  : `${formatINR(disc.discountValue)} Flat Discount`}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-industrial-600">
+                              {disc.description}
+                            </p>
+                          </div>
+
+                          <button
+                            type="button"
+                            disabled={isApplied || !isMinMet}
+                            onClick={async () => {
+                              setCouponInput(disc.code);
+                              const res = await applyCoupon(disc.code);
+                              if (res.success) {
+                                setCouponMessage({ text: res.message, isError: false });
+                                setCouponInput('');
+                              } else {
+                                setCouponMessage({ text: res.message, isError: true });
+                              }
+                            }}
+                            className={`px-3 py-1 rounded-xl text-xs font-bold shrink-0 transition-all cursor-pointer ${
+                              isApplied
+                                ? 'bg-emerald-600 text-white cursor-default'
+                                : isMinMet
+                                ? 'bg-industrial-900 hover:bg-brand-600 text-white shadow-sm'
+                                : 'bg-industrial-200 text-industrial-400 cursor-not-allowed'
+                            }`}
+                          >
+                            {isApplied ? 'Applied' : 'Apply'}
+                          </button>
+                        </div>
+
+                        <div className="pt-1.5 border-t border-industrial-100 flex items-center justify-between text-[10px]">
+                          <span className="text-industrial-500">
+                            Min Order: {formatINR(disc.minimumOrderAmount)}
+                          </span>
+                          <span className="text-emerald-700 font-bold">
+                            Max Benefit: {formatINR(disc.maxDiscountAmount)}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* All Store Coupons */}
+            {allCoupons.length > 0 && (
+              <div className="space-y-2 pt-3 border-t border-industrial-100">
+                <div className="text-[11px] font-bold text-industrial-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <Tag className="w-3.5 h-3.5 text-brand-600" />
+                  <span>All Store Coupons ({allCoupons.length})</span>
+                </div>
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                  {allCoupons.map((coupon) => {
+                    const isApplied =
+                      cart.appliedCoupon?.code === coupon.code ||
+                      cart.appliedCoupon === coupon.code;
+                    const isMinMet = (cart.subtotal || 0) >= (coupon.minimumOrderAmount || 0);
+
+                    return (
+                      <div
+                        key={coupon.couponId || coupon.code}
+                        className={`p-2.5 rounded-xl border text-xs flex items-center justify-between gap-2 transition-all ${
+                          isApplied
+                            ? 'bg-emerald-50 border-emerald-300 ring-1 ring-emerald-400'
+                            : 'bg-white border-industrial-200 hover:border-brand-300'
+                        }`}
+                      >
+                        <div className="min-w-0 space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-bold text-brand-700 bg-brand-50 border border-brand-200 px-1.5 py-0.5 rounded text-[10px]">
+                              {coupon.code}
+                            </span>
+                            <span className="text-[11px] font-semibold text-industrial-800">
+                              {coupon.discountType === 'PERCENTAGE'
+                                ? `${coupon.discountValue}% OFF`
+                                : `${formatINR(coupon.discountValue)} OFF`}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-industrial-500 truncate">
+                            {coupon.description || `Min spend ${formatINR(coupon.minimumOrderAmount)}`}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={isApplied}
+                          onClick={async () => {
+                            setCouponInput(coupon.code);
+                            const res = await applyCoupon(coupon.code);
+                            if (res.success) {
+                              setCouponMessage({ text: res.message, isError: false });
+                              setCouponInput('');
+                            } else {
+                              setCouponMessage({ text: res.message, isError: true });
+                            }
+                          }}
+                          className={`px-2.5 py-1 rounded-lg text-[10px] font-bold shrink-0 transition-all ${
+                            isApplied
+                              ? 'bg-emerald-600 text-white cursor-default'
+                              : isMinMet
+                              ? 'bg-brand-600 hover:bg-brand-700 text-white'
+                              : 'bg-industrial-100 text-industrial-600 hover:bg-industrial-200'
+                          }`}
+                        >
+                          {isApplied ? 'Applied' : 'Apply'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Price Calculations */}
             <div className="space-y-2.5 text-xs pt-2 border-t border-industrial-100">

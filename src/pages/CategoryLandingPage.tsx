@@ -38,8 +38,20 @@ export const CategoryLandingPage: React.FC = () => {
     if (!categorySlug) return;
     setIsLoading(true);
 
-    categoryApi
-      .getCategoryBySlug(categorySlug)
+    async function fetchCat() {
+      let cat = await categoryApi.getCategoryBySlug(categorySlug!);
+      if (!cat) {
+        const resolvedId = await categoryApi.resolveCategoryId(categorySlug!);
+        if (resolvedId) {
+          try {
+            cat = await categoryApi.getCategoryById(resolvedId);
+          } catch {}
+        }
+      }
+      return cat;
+    }
+
+    fetchCat()
       .then(async (cat) => {
         if (!cat) {
           setIsLoading(false);

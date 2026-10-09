@@ -34,6 +34,7 @@ export interface Seller {
   id: string;
   name: string;
   isVerified: boolean;
+  verified?: boolean;
   rating: number;
   city: string;
   state: string;
@@ -120,6 +121,7 @@ export interface Product {
   ratingCount?: number;
   reviewCount?: number;
   active?: boolean;
+  inStock?: boolean;
   is24HourDelivery?: boolean;
   status?: 'APPROVED' | 'PENDING' | 'REJECTED' | string;
   approvalStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | string;
@@ -281,6 +283,7 @@ export interface Banner {
 export interface CreateBannerInput {
   title: string;
   subtitle?: string;
+  imageUrl?: string;
   targetUrl?: string;
   sortOrder?: number;
   active?: boolean;
@@ -318,6 +321,7 @@ export interface User {
   companyName: string;
   gstin: string;
   pan: string;
+  panNumber?: string;
   businessType: string;
   industry: string;
   isGstVerified: boolean;
@@ -344,22 +348,26 @@ export interface UpdateUserProfileInput {
 }
 
 export interface CustomerMaster {
-  customerId: number;
+  customerId?: number;
+  id?: number | string;
   companyName: string;
-  contactPerson: string;
+  contactPerson?: string;
+  name?: string;
   email: string;
   phone: string;
-  gstNumber: string;
-  panNumber: string;
-  businessType: string;
-  creditLimit: number;
-  status: string;
+  gstNumber?: string;
+  panNumber?: string;
+  businessType?: string;
+  creditLimit?: number;
+  status?: string;
   createdAt?: string;
 }
 
 export type Customer = CustomerMaster;
-export type CreateCustomerInput = Partial<CustomerMaster>;
-export type UpdateCustomerInput = Partial<CustomerMaster>;
+export type CreateCustomerInput = Partial<CustomerMaster> & { gstin?: string; name?: string };
+export type UpdateCustomerInput = Partial<CustomerMaster> & { name?: string };
+
+export type BackendAddressType = 'HOME' | 'WORK' | 'OTHER';
 
 export interface Address {
   id: string;
@@ -374,16 +382,41 @@ export interface Address {
   gstin?: string;
   addressLine1: string;
   addressLine2?: string;
+  houseFlatNo?: string;
+  areaLocality?: string;
   landmark?: string;
   city: string;
   state: string;
   pincode: string;
-  addressType: 'Site / Project' | 'Warehouse / Factory' | 'Office / Commercial' | 'HOME' | 'WORK' | 'OTHER' | string;
+  latitude?: number;
+  longitude?: number;
+  addressType: BackendAddressType | 'Site / Project' | 'Warehouse / Factory' | 'Office / Commercial' | string;
   isDefault?: boolean;
   isDefaultDelivery: boolean;
   isDefaultBilling: boolean;
   hasHeavyVehicleAccess?: boolean;
   createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AddressRequest {
+  siteName?: string;
+  recipientName: string;
+  phone?: string;
+  addressLine1: string;
+  addressLine2?: string;
+  houseFlatNo?: string;
+  areaLocality?: string;
+  city: string;
+  state: string;
+  pincode: string;
+  country?: string;
+  landmark?: string;
+  latitude?: number;
+  longitude?: number;
+  addressType: BackendAddressType;
+  isDefault?: boolean;
+  hasHeavyVehicleAccess?: boolean;
 }
 
 export interface CreateSiteAddressInput {
@@ -397,10 +430,14 @@ export interface CreateSiteAddressInput {
   gstin?: string;
   addressLine1: string;
   addressLine2?: string;
+  houseFlatNo?: string;
+  areaLocality?: string;
   city: string;
   state: string;
   pincode: string;
   landmark?: string;
+  latitude?: number;
+  longitude?: number;
   addressType?: string;
   isDefault?: boolean;
   isDefaultDelivery?: boolean;
@@ -423,6 +460,7 @@ export type KYCDocumentType =
 
 export interface KYCDocument {
   documentId: number;
+  id?: number | string;
   customerId: number;
   documentType: KYCDocumentType;
   title: string;
@@ -857,9 +895,34 @@ export interface UploadResponse {
   sizeBytes?: number;
 }
 
-// 2. Pincode & Delivery Serviceability
-export interface ServiceabilityResult {
-  success?: boolean;
+// 2. Location, Reverse Geocoding & Delivery Serviceability
+export interface ReverseGeocodeRequest {
+  latitude: number;
+  longitude: number;
+}
+
+export interface ReverseGeocodeLocationData {
+  latitude: number;
+  longitude: number;
+  formattedAddress: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  area?: string;
+  city: string;
+  state: string;
+  country: string;
+  pincode: string;
+}
+
+export interface ReverseGeocodeResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: ReverseGeocodeLocationData;
+  timestamp: string;
+}
+
+export interface PincodeServiceabilityData {
   pincode: string;
   city: string;
   state: string;
@@ -867,7 +930,28 @@ export interface ServiceabilityResult {
   estimatedDays: number;
   isExpressAvailable: boolean;
   area?: string;
+  district?: string;
 }
+
+export interface PincodeServiceabilityResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  pincode: string;
+  city: string;
+  state: string;
+  serviceable: boolean;
+  estimatedDays: number;
+  isExpressAvailable: boolean;
+  area?: string;
+  district?: string;
+  data: PincodeServiceabilityData;
+  timestamp?: string;
+}
+
+export type ServiceabilityResult = PincodeServiceabilityData & {
+  success?: boolean;
+};
 
 // 3. Global Tax Invoice Item
 export interface GlobalInvoiceItem {
@@ -925,7 +1009,61 @@ export interface MillTestCertificate {
   downloadUrl?: string;
 }
 
-// 5. Coupons & Promotions
+// 5. Coupons & Customer Discounts
+export interface CustomerDiscount {
+  discountId: number;
+  sellerId?: number;
+  code: string;
+  description: string;
+  discountType: 'PERCENTAGE' | 'FLAT' | string;
+  discountValue: number;
+  minimumOrderAmount: number;
+  maxDiscountAmount: number;
+  startDate: string;
+  endDate: string;
+  status: 'APPROVED' | 'PENDING' | 'REJECTED' | string;
+  active: boolean;
+}
+
+export interface CustomerDiscountsResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: CustomerDiscount[];
+}
+
+export interface EligibleCoupon {
+  code: string;
+  title: string;
+  description: string;
+  discountType: 'PERCENTAGE' | 'FIXED_AMOUNT' | 'FLAT' | string;
+  discountValue: number;
+  minOrderAmount: number;
+  maxDiscountAmount: number;
+  expiryDate: string;
+  isApplicable: boolean;
+  estimatedDiscount: number;
+  shortfallAmount: number;
+}
+
+export interface EligibleCouponResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: EligibleCoupon[];
+  timestamp?: string;
+}
+
+export interface AppliedCouponResponseData {
+  couponCode: string;
+  discountAmount: number;
+  cartSubtotal: number;
+  taxAmount: number;
+  deliveryCharge: number;
+  newGrandTotal: number;
+  grandTotal: number;
+}
+
 export interface Coupon {
   couponId: number;
   code: string;
@@ -939,21 +1077,49 @@ export interface Coupon {
 
 // 6. Product Reviews
 export interface ProductReview {
-  reviewId: number;
-  productId: number;
+  id?: number;
+  reviewId?: number;
+  productId?: number;
+  productTitle?: string;
+  customerId?: number;
   customerName?: string;
+  orderId?: number;
+  orderItemId?: number;
   rating: number;
   title: string;
   comment: string;
+  status?: string;
+  helpfulCount?: number;
+  verifiedPurchase?: boolean;
+  imageUrls?: string[];
   createdAt: string;
+  updatedAt?: string;
 }
 
-export interface CreateReviewInput {
-  productId: number;
+export interface CreateReviewRequest {
+  orderItemId: number;
   rating: number;
   title: string;
   comment: string;
+  imageUrls?: string[];
 }
+
+export interface ReviewResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: ProductReview;
+  timestamp?: string;
+}
+
+export type CreateReviewInput = CreateReviewRequest | {
+  productId?: number;
+  orderItemId?: number;
+  rating: number;
+  title: string;
+  comment: string;
+  imageUrls?: string[];
+};
 
 // 7. Credit Limit & Ledger
 export interface CreditApplicationInput {

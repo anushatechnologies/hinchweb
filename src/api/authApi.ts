@@ -1,11 +1,12 @@
 import { apiClient } from '../services/apiClient';
+import { tokenStorage } from '../services/tokenStorage';
 import type { User, UpdateUserProfileInput } from '../types';
 
 export interface SyncUserPayload {
+  firebaseIdToken?: string;
   name?: string | null;
   email?: string | null;
   phone?: string | null;
-  role?: string;
 }
 
 export interface ProfileUpdatePayload {
@@ -16,6 +17,18 @@ export interface ProfileUpdatePayload {
   gstNumber?: string;
   panNumber?: string;
   businessType?: string;
+}
+
+export interface CheckPhoneResponse {
+  exists: boolean;
+  message?: string;
+}
+
+export interface AuthSyncResponse {
+  accessToken: string;
+  tokenType: string;
+  expiresIn?: number;
+  user: User;
 }
 
 export function mapBackendUser(data: any): User {
@@ -36,8 +49,14 @@ export function mapBackendUser(data: any): User {
   const name = rawName && rawName.trim() !== '' ? rawName.trim() : '';
   const email = rawEmail && rawEmail.trim() !== '' ? rawEmail.trim() : '';
 
-  // Step 6 in contract: If name is null/empty or email is null/empty -> profile incomplete
-  const isProfileComplete = Boolean(name && email);
+  // Use authoritative backend isProfileComplete flag if present; fallback to checking name & email
+  const isProfileComplete = typeof data.isProfileComplete === 'boolean'
+    ? data.isProfileComplete
+    : Boolean(name && email);
+
+  // Normalize role while preserving original case comparison
+  const rawRole = (data.role || 'CUSTOMER').toUpperCase();
+  const role = rawRole;
 
   return {
     id,
@@ -47,7 +66,7 @@ export function mapBackendUser(data: any): User {
     fullName: name,
     email,
     phone,
-    role: data.role || 'BUYER',
+    role,
     active: data.active ?? true,
     sellerId: data.sellerId ?? null,
     tier: data.tier || 'STANDARD',
@@ -55,6 +74,7 @@ export function mapBackendUser(data: any): User {
     companyName: data.companyName || business.companyName || '',
     gstin: data.gstin || business.gstNumber || data.gstNumber || '',
     pan: data.pan || business.panNumber || data.panNumber || '',
+    panNumber: data.pan || business.panNumber || data.panNumber || '',
     businessType: data.businessType || business.businessType || 'Buyer',
     industry: data.industry || '',
     isGstVerified: Boolean(data.isGstVerified ?? business.isGstVerified ?? false),
@@ -77,54 +97,90 @@ export function mapBackendUser(data: any): User {
 
 export const authApi = {
   /**
-   * Endpoint 1: Auto-Registration & Login Sync (Core Flow)
-   * POST /api/auth/sync
-   * Header: Authorization: Bearer <firebase_id_token>
-   * Payload: {} (Phone-only / returning user) or { name, email, phone, role: 'BUYER' }
+   * API 1: Check Phone
+   * GET /api/auth/check-phone?phone=%2B919876543210
    */
-  async syncUser(payload: SyncUserPayload = {}): Promise<User> {
+  async checkPhone(phone: string): Promise<CheckPhoneResponse> {
     try {
-      const res = await apiClient.post('/auth/sync', payload);
-      if (res.data?.success && res.data?.data) {
-        const user = mapBackendUser(res.data.data);
-        localStorage.setItem('hinchmart_user', JSON.stringify(user));
-        return user;
+      let formatted = phone.trim();
+      if (!formatted.startsWith('+')) {
+        const digits = formatted.replace(/\D/g, '');
+        formatted = `+91${digits}`;
       }
-      if (res.data?.userId || res.data?.id) {
-        const user = mapBackendUser(res.data);
-        localStorage.setItem('hinchmart_user', JSON.stringify(user));
-        return user;
-      }
-      return this.getMe();
-    } catch (err: any) {
-      if (err.statusCode === 409 || err.response?.status === 409) {
-        const conflictMsg = err.response?.data?.message || err.message || 'Phone number or email is already registered to another account.';
-        const customErr: any = new Error(conflictMsg);
-        customErr.statusCode = 409;
-        throw customErr;
-      }
-      throw err;
+      const res = await apiClient.get('/auth/check-phone', {
+        params: { phone: formatted },
+      });
+      const data = res.data?.data || res.data;
+      return {
+        exists: Boolean(data?.exists),
+        message: res.data?.message || '',
+      };
+    } catch {
+      // Gracefully handle network or non-existent endpoint without blocking user
+      return { exists: false };
     }
   },
 
   /**
-   * Endpoint 3: Session Restore / Get Current User
+   * API 2: Synchronize User and Exchange Tokens
+   * POST /api/auth/sync
+   * Body: { firebaseIdToken, name?, phone?, email? }
+   * Header: Authorization: Bearer <firebaseIdToken>
+   */
+  async syncUser(
+    firebaseIdToken: string,
+    profileDetails?: { name?: string | null; phone?: string | null; email?: string | null }
+  ): Promise<AuthSyncResponse> {
+    if (!firebaseIdToken) {
+      throw new Error('Firebase ID Token is required for backend synchronization');
+    }
+
+    const payload: Record<string, unknown> = {
+      firebaseIdToken,
+    };
+    if (profileDetails?.name) payload.name = profileDetails.name;
+    if (profileDetails?.phone) payload.phone = profileDetails.phone;
+    if (profileDetails?.email) payload.email = profileDetails.email;
+
+    const res = await apiClient.post('/auth/sync', payload, {
+      headers: {
+        Authorization: `Bearer ${firebaseIdToken}`,
+      },
+    });
+
+    const body = res.data?.data || res.data;
+    const accessToken = body?.accessToken || body?.token;
+
+    if (!accessToken) {
+      throw new Error('Backend response did not contain an access token');
+    }
+
+    const user = mapBackendUser(body);
+
+    // Persist HinchMart JWT and active user profile
+    tokenStorage.setAccessToken(accessToken);
+    tokenStorage.setUser(user);
+
+    return {
+      accessToken,
+      tokenType: body.tokenType || 'Bearer',
+      expiresIn: body.expiresIn,
+      user,
+    };
+  },
+
+  /**
+   * API 3: Current User Profile
    * GET /api/auth/me
-   * Header: Authorization: Bearer <firebase_id_token>
+   * Header: Authorization: Bearer <HINCHMART_JWT>
    */
   async getMe(): Promise<User> {
     try {
       const res = await apiClient.get('/auth/me');
-      if (res.data?.success && res.data?.data) {
-        const user = mapBackendUser(res.data.data);
-        localStorage.setItem('hinchmart_user', JSON.stringify(user));
-        return user;
-      }
-      if (res.data?.userId || res.data?.id) {
-        const user = mapBackendUser(res.data);
-        localStorage.setItem('hinchmart_user', JSON.stringify(user));
-        return user;
-      }
+      const body = res.data?.data || res.data;
+      const user = mapBackendUser(body);
+      tokenStorage.setUser(user);
+      return user;
     } catch (err: any) {
       // If /auth/me returns 404, fallback to /user/profile
       if (err.statusCode === 404 || err.response?.status === 404) {
@@ -132,28 +188,35 @@ export const authApi = {
       }
       throw err;
     }
-    return this.getProfile();
   },
 
   /**
-   * Endpoint 2: Profile Completion & Updates
-   * PUT /api/user/profile
-   * Header: Authorization: Bearer <firebase_id_token>
-   * Payload: { name, email, phone, companyName?, gstNumber? }
+   * API 4: Refresh Token
+   * POST /api/auth/refresh-token
    */
-  async updateProfile(payload: ProfileUpdatePayload | UpdateUserProfileInput): Promise<User> {
-    const res = await apiClient.put('/user/profile', payload);
-    if (res.data?.success && res.data?.data) {
-      const user = mapBackendUser(res.data.data);
-      localStorage.setItem('hinchmart_user', JSON.stringify(user));
-      return user;
+  async refreshToken(): Promise<string> {
+    const res = await apiClient.post('/auth/refresh-token');
+    const body = res.data?.data || res.data;
+    const newAccessToken = body?.accessToken || body?.token;
+    if (newAccessToken) {
+      tokenStorage.setAccessToken(newAccessToken);
+      return newAccessToken;
     }
-    if (res.data?.userId || res.data?.id) {
-      const user = mapBackendUser(res.data);
-      localStorage.setItem('hinchmart_user', JSON.stringify(user));
-      return user;
+    throw new Error('Failed to refresh token from backend');
+  },
+
+  /**
+   * API 5: Logout
+   * POST /api/auth/logout
+   */
+  async logout(): Promise<void> {
+    try {
+      await apiClient.post('/auth/logout');
+    } catch {
+      // Backend logout errors should not block frontend clearing
+    } finally {
+      tokenStorage.clearSession();
     }
-    throw new Error(res.data?.message || 'Failed to update profile');
   },
 
   /**
@@ -161,106 +224,20 @@ export const authApi = {
    */
   async getProfile(): Promise<User> {
     const res = await apiClient.get('/user/profile');
-    if (res.data?.success && res.data?.data) {
-      const user = mapBackendUser(res.data.data);
-      localStorage.setItem('hinchmart_user', JSON.stringify(user));
-      return user;
-    }
-    if (res.data?.userId || res.data?.id || res.data?.email) {
-      const user = mapBackendUser(res.data);
-      localStorage.setItem('hinchmart_user', JSON.stringify(user));
-      return user;
-    }
-    throw new Error('Failed to retrieve user profile');
+    const body = res.data?.data || res.data;
+    const user = mapBackendUser(body);
+    tokenStorage.setUser(user);
+    return user;
   },
 
   /**
-   * Send OTP (POST /api/auth/send-otp with fallback demo mode)
+   * Update User Profile (PUT /api/user/profile)
    */
-  async sendOTP(phone: string, purpose?: string): Promise<{ success: boolean; message: string; otpCode?: string }> {
-    try {
-      const res = await apiClient.post('/auth/send-otp', { phone, mobile: phone, purpose });
-      if (res.data?.success || res.data?.otpCode) {
-        return res.data;
-      }
-      return {
-        success: true,
-        message: res.data?.message || `OTP sent to ${phone}`,
-        otpCode: res.data?.otpCode || res.data?.data?.otpCode,
-      };
-    } catch (err: any) {
-      console.warn('Backend /auth/send-otp unavailable, running in local test mode:', err?.message);
-      return {
-        success: true,
-        message: `OTP sent to ${phone} (Local Test Mode: 123456)`,
-        otpCode: '123456',
-      };
-    }
-  },
-
-  async sendOtp(phone: string, purpose?: string): Promise<{ success: boolean; message: string; otpCode?: string }> {
-    return this.sendOTP(phone, purpose);
-  },
-
-  /**
-   * Verify OTP (POST /api/auth/verify-otp with fallback demo mode)
-   */
-  async verifyOTP(phone: string, otp: string, purpose?: string): Promise<{ token: string; user: User }> {
-    try {
-      const res = await apiClient.post('/auth/verify-otp', { phone, mobile: phone, otp, otpCode: otp, purpose });
-      const token = res.data?.token || res.data?.data?.token || '';
-      if (token) {
-        localStorage.setItem('hinchmart_auth_token', token);
-      }
-      const user = mapBackendUser(res.data?.data?.user || res.data?.user || res.data?.data);
-      localStorage.setItem('hinchmart_user', JSON.stringify(user));
-      return { token, user };
-    } catch (err: any) {
-      console.warn('Backend /auth/verify-otp unavailable, generating test session:', err?.message);
-      const testToken = 'jwt_test_' + Date.now();
-      localStorage.setItem('hinchmart_auth_token', testToken);
-      const user = mapBackendUser({
-        userId: 102,
-        firebaseUid: 'test_uid_' + phone,
-        name: null,
-        email: null,
-        phone,
-        role: 'BUYER',
-      });
-      localStorage.setItem('hinchmart_user', JSON.stringify(user));
-      return { token: testToken, user };
-    }
-  },
-
-  async verifyOtp(phone: string, otp: string, purpose?: string): Promise<{ token: string; user: User }> {
-    return this.verifyOTP(phone, otp, purpose);
-  },
-
-  /**
-   * Login with credentials (POST /api/auth/login)
-   */
-  async login(payload: { identifier: string; password?: string }): Promise<{ token: string; user: User }> {
-    const res = await apiClient.post('/auth/login', payload);
-    const token = res.data?.token || res.data?.data?.token || '';
-    if (token) {
-      localStorage.setItem('hinchmart_auth_token', token);
-    }
-    const user = mapBackendUser(res.data?.data?.user || res.data?.user || res.data?.data);
-    localStorage.setItem('hinchmart_user', JSON.stringify(user));
-    return { token, user };
-  },
-
-  /**
-   * Logout
-   */
-  async logout(): Promise<void> {
-    try {
-      await apiClient.post('/auth/logout');
-    } catch {
-      // Ignore network errors on logout
-    } finally {
-      localStorage.removeItem('hinchmart_auth_token');
-      localStorage.removeItem('hinchmart_user');
-    }
+  async updateProfile(payload: ProfileUpdatePayload | UpdateUserProfileInput): Promise<User> {
+    const res = await apiClient.put('/user/profile', payload);
+    const body = res.data?.data || res.data;
+    const user = mapBackendUser(body);
+    tokenStorage.setUser(user);
+    return user;
   },
 };

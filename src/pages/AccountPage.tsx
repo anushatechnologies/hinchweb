@@ -3,19 +3,35 @@ import { useAuthStore } from '../store/useAuthStore';
 import { useToastStore } from '../store/useToastStore';
 import { kycApi } from '../api/kycApi';
 import { uploadApi } from '../api/uploadApi';
-import type { KYCDocument, KYCDocumentType } from '../types';
+import { locationApi } from '../api/locationApi';
+import { creditApi } from '../api/creditApi';
+import { addressApi } from '../api/addressApi';
+import { authApi } from '../api/authApi';
+import type { KYCDocument, KYCDocumentType, CreditLedger, CreditApplicationResult } from '../types';
+import { formatINR, formatDate } from '../utils/formatters';
 import {
   ShieldCheck,
   Plus,
   Trash2,
   FileCheck,
+  Check,
+  Navigation,
+  Loader2,
+  MapPin,
+  CreditCard,
+  Clock,
+  Calendar,
+  ArrowUpRight,
+  ArrowDownLeft,
+  RefreshCw,
+  Eye,
 } from 'lucide-react';
 
 export const AccountPage: React.FC = () => {
-  const { user, addresses, addAddress, deleteAddress, updateUser } = useAuthStore();
+  const { user, addresses, addAddress, deleteAddress, setDefaultAddress, updateUser } = useAuthStore();
   const { showToast } = useToastStore();
 
-  const [activeTab, setActiveTab] = useState<'profile' | 'addresses' | 'kyc'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'addresses' | 'kyc' | 'credit'>('profile');
   const [isAddingSite, setIsAddingSite] = useState(false);
   const [documents, setDocuments] = useState<KYCDocument[]>([]);
   const [isUploadingDoc, setIsUploadingDoc] = useState(false);
@@ -38,6 +54,45 @@ export const AccountPage: React.FC = () => {
   const [newPincode, setNewPincode] = useState('');
   const [newLandmark, setNewLandmark] = useState('');
   const [hasHeavyAccess, setHasHeavyAccess] = useState(true);
+  const [newLat, setNewLat] = useState<number | undefined>();
+  const [newLng, setNewLng] = useState<number | undefined>();
+  const [isDetectingSiteLoc, setIsDetectingSiteLoc] = useState(false);
+
+  const handleDetectGPS = () => {
+    if (!navigator.geolocation) {
+      showToast('error', 'Geolocation is not supported by your browser', 'Location Error');
+      return;
+    }
+    setIsDetectingSiteLoc(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { latitude, longitude } = pos.coords;
+          setNewLat(latitude);
+          setNewLng(longitude);
+          const geo = await locationApi.reverseGeocode(latitude, longitude);
+          if (geo) {
+            if (geo.addressLine1) setNewLine1(geo.addressLine1);
+            if (geo.addressLine2) setNewLine2(geo.addressLine2);
+            if (geo.city) setNewCity(geo.city);
+            if (geo.state) setNewState(geo.state);
+            if (geo.pincode) setNewPincode(geo.pincode);
+            if (geo.area) setNewLandmark(`Near ${geo.area}`);
+            showToast('success', `GPS coordinates resolved: ${geo.city} (${geo.pincode})`, 'Location Auto-Filled');
+          }
+        } catch (err: any) {
+          showToast('error', err?.message || 'Failed to reverse geocode GPS location', 'Location Error');
+        } finally {
+          setIsDetectingSiteLoc(false);
+        }
+      },
+      (err) => {
+        setIsDetectingSiteLoc(false);
+        showToast('error', err?.message || 'GPS location permission denied', 'Location Error');
+      },
+      { timeout: 10000, enableHighAccuracy: true }
+    );
+  };
 
   // KYC Upload Form
   const [docType, setDocType] = useState<KYCDocumentType>('GST_CERTIFICATE');
@@ -46,9 +101,54 @@ export const AccountPage: React.FC = () => {
   const [fileName, setFileName] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
+  // B2B Trade Credit State
+  const [creditLedger, setCreditLedger] = useState<CreditLedger | null>(null);
+  const [isLoadingCredit, setIsLoadingCredit] = useState(false);
+  const [isApplyingCredit, setIsApplyingCredit] = useState(false);
+  const [creditResult, setCreditResult] = useState<CreditApplicationResult | null>(null);
+  const [creditRequestedLimit, setCreditRequestedLimit] = useState(1000000);
+  const [creditTenureDays, setCreditTenureDays] = useState(30);
+  const [creditTurnover, setCreditTurnover] = useState(50000000);
+  const [creditNotes, setCreditNotes] = useState('');
+
   useEffect(() => {
     kycApi.getDocuments(user.id).then(setDocuments).catch(console.error);
   }, [user.id]);
+
+  useEffect(() => {
+    if (activeTab === 'credit') {
+      setIsLoadingCredit(true);
+      creditApi
+        .getCreditLedger()
+        .then(setCreditLedger)
+        .catch(console.error)
+        .finally(() => setIsLoadingCredit(false));
+    }
+  }, [activeTab]);
+
+  const handleApplyCredit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsApplyingCredit(true);
+    try {
+      const res = await creditApi.applyForCredit({
+        businessName: user.companyName || user.name || 'Enterprise Buyer',
+        gstin: user.gstin || '',
+        panNumber: user.panNumber || (user.gstin ? user.gstin.substring(2, 12) : 'AABCH9988C'),
+        requestedLimit: creditRequestedLimit,
+        tenureDays: creditTenureDays,
+        annualTurnover: creditTurnover,
+        notes: creditNotes,
+      });
+      setCreditResult(res);
+      showToast('success', `Trade credit application submitted! Application Ref: ${res.applicationId}`, 'Credit Application Submitted');
+      const updated = await creditApi.getCreditLedger();
+      setCreditLedger(updated);
+    } catch (err: any) {
+      showToast('error', err?.message || 'Failed to submit credit application', 'Credit Error');
+    } finally {
+      setIsApplyingCredit(false);
+    }
+  };
 
   const handleSaveAddress = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,8 +172,10 @@ export const AccountPage: React.FC = () => {
         city: newCity,
         state: newState,
         pincode: newPincode,
+        latitude: newLat,
+        longitude: newLng,
         addressType: 'Site / Project',
-        isDefaultDelivery: false,
+        isDefaultDelivery: addresses.length === 0,
         isDefaultBilling: false,
         hasHeavyVehicleAccess: hasHeavyAccess,
       });
@@ -208,6 +310,7 @@ export const AccountPage: React.FC = () => {
           { id: 'profile', label: 'Company Profile & Rep' },
           { id: 'addresses', label: `Delivery Sites & Address Book (${addresses.length})` },
           { id: 'kyc', label: `KYC Compliance Documents (${documents.length})` },
+          { id: 'credit', label: 'B2B Trade Credit & Ledger' },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -232,12 +335,30 @@ export const AccountPage: React.FC = () => {
               <h3 className="font-bold text-sm text-industrial-950">
                 Registered Business Entity
               </h3>
-              <button
-                onClick={() => setIsEditingProfile(!isEditingProfile)}
-                className="text-xs font-bold text-brand-600 hover:text-brand-700 cursor-pointer"
-              >
-                {isEditingProfile ? 'Cancel' : 'Edit Profile'}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const refreshed = await authApi.getProfile();
+                      showToast('success', `Profile synced: ${refreshed.name || refreshed.companyName}`, 'Profile Refreshed');
+                    } catch {
+                      showToast('info', 'Profile verified with local cache', 'Profile Refreshed');
+                    }
+                  }}
+                  className="text-xs font-semibold text-industrial-500 hover:text-industrial-700 flex items-center gap-1 cursor-pointer"
+                  title="Synchronize profile from server"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Sync</span>
+                </button>
+                <button
+                  onClick={() => setIsEditingProfile(!isEditingProfile)}
+                  className="text-xs font-bold text-brand-600 hover:text-brand-700 cursor-pointer"
+                >
+                  {isEditingProfile ? 'Cancel' : 'Edit Profile'}
+                </button>
+              </div>
             </div>
 
             {isEditingProfile ? (
@@ -381,7 +502,27 @@ export const AccountPage: React.FC = () => {
 
           {isAddingSite && (
             <form onSubmit={handleSaveAddress} className="bg-white p-6 rounded-3xl border border-industrial-200 shadow-card space-y-4 text-xs">
-              <h4 className="font-bold text-sm text-industrial-900">Add Project Site Address</h4>
+              <div className="flex items-center justify-between pb-2 border-b border-industrial-100">
+                <h4 className="font-bold text-sm text-industrial-900">Add Project Site Address</h4>
+                <button
+                  type="button"
+                  onClick={handleDetectGPS}
+                  disabled={isDetectingSiteLoc}
+                  className="px-3 py-1.5 rounded-xl border border-brand-200 bg-brand-50 hover:bg-brand-100 text-brand-700 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {isDetectingSiteLoc ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-brand-600" />
+                      <span>Resolving GPS...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Navigation className="w-3.5 h-3.5 text-brand-600" />
+                      <span>Auto-Fill from GPS</span>
+                    </>
+                  )}
+                </button>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-semibold text-industrial-700">Project / Site Name *</label>
@@ -522,13 +663,32 @@ export const AccountPage: React.FC = () => {
                       Recipient: <strong>{addr.recipientName || addr.contactName}</strong> ({addr.phone || addr.mobile})
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleDeleteAddress(addr.id)}
-                    className="text-rose-500 hover:text-rose-700 p-1.5 rounded-lg hover:bg-rose-50 cursor-pointer"
-                    title="Remove address"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          const detailed = await addressApi.getAddressById(addr.id || addr.addressId || '');
+                          if (detailed) {
+                            showToast('info', `Verified address: ${detailed.city}, ${detailed.pincode}`, 'Address Verified');
+                          }
+                        } catch {
+                          showToast('info', `Site address: ${addr.city}, ${addr.pincode}`, 'Site Address');
+                        }
+                      }}
+                      className="text-industrial-400 hover:text-brand-600 p-1.5 rounded-lg hover:bg-industrial-50 cursor-pointer"
+                      title="Inspect address details"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteAddress(addr.id)}
+                      className="text-rose-500 hover:text-rose-700 p-1.5 rounded-lg hover:bg-rose-50 cursor-pointer"
+                      title="Remove address"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="text-industrial-700 leading-relaxed">
@@ -537,6 +697,31 @@ export const AccountPage: React.FC = () => {
                   {addr.landmark ? ` (Landmark: ${addr.landmark})` : ''}
                   <br />
                   <strong className="text-industrial-900">{addr.city}, {addr.state} � {addr.pincode}</strong>
+                </div>
+
+                <div className="pt-2.5 border-t border-industrial-100 flex items-center justify-between text-[11px]">
+                  {addr.isDefault || addr.isDefaultDelivery ? (
+                    <span className="font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
+                      <Check className="w-3 h-3" /> Default Delivery Site
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await setDefaultAddress(addr.id || addr.addressId || '');
+                        showToast('success', `${addr.siteName || 'Address'} marked as default delivery site`, 'Default Updated');
+                      }}
+                      className="text-industrial-500 hover:text-brand-600 font-bold hover:underline cursor-pointer"
+                    >
+                      Set as Default Site
+                    </button>
+                  )}
+                  {addr.latitude !== undefined && addr.longitude !== undefined && (
+                    <span className="text-industrial-400 font-mono text-[10px] flex items-center gap-1">
+                      <MapPin className="w-3 h-3 text-brand-500 shrink-0" />
+                      <span>{Number(addr.latitude).toFixed(4)}, {Number(addr.longitude).toFixed(4)}</span>
+                    </span>
+                  )}
                 </div>
               </div>
             ))}
@@ -639,6 +824,317 @@ export const AccountPage: React.FC = () => {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* 4. B2B Trade Credit & Ledger Tab */}
+      {activeTab === 'credit' && (
+        <div className="space-y-6 text-xs">
+          {/* Top Metric Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white p-5 rounded-2xl border border-industrial-200 shadow-subtle space-y-1">
+              <div className="flex items-center justify-between text-industrial-500 font-bold text-[11px]">
+                <span>Total Approved Limit</span>
+                <CreditCard className="w-4 h-4 text-brand-600" />
+              </div>
+              <div className="text-2xl font-black text-industrial-950 font-mono">
+                {formatINR(creditLedger?.creditLimit || 0)}
+              </div>
+              <div className="flex items-center gap-1.5 pt-1">
+                <span
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    creditLedger?.status === 'ACTIVE'
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : creditLedger?.status === 'PENDING'
+                      ? 'bg-amber-100 text-amber-800'
+                      : 'bg-industrial-100 text-industrial-600'
+                  }`}
+                >
+                  {creditLedger?.status || 'NOT APPLIED'}
+                </span>
+                <span className="text-[10px] text-industrial-400">Institutional Line</span>
+              </div>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-industrial-200 shadow-subtle space-y-1">
+              <div className="flex items-center justify-between text-industrial-500 font-bold text-[11px]">
+                <span>Available Balance</span>
+                <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              </div>
+              <div className="text-2xl font-black text-emerald-700 font-mono">
+                {formatINR(creditLedger?.availableLimit || 0)}
+              </div>
+              <p className="text-[10px] text-industrial-400 pt-1">Ready for 1-click checkout</p>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-industrial-200 shadow-subtle space-y-1">
+              <div className="flex items-center justify-between text-industrial-500 font-bold text-[11px]">
+                <span>Utilized / Outstanding</span>
+                <Clock className="w-4 h-4 text-amber-600" />
+              </div>
+              <div className="text-2xl font-black text-amber-700 font-mono">
+                {formatINR(creditLedger?.utilizedLimit || creditLedger?.dueAmount || 0)}
+              </div>
+              <p className="text-[10px] text-industrial-400 pt-1">Active site consignments</p>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-industrial-200 shadow-subtle space-y-1">
+              <div className="flex items-center justify-between text-industrial-500 font-bold text-[11px]">
+                <span>Next Repayment Due</span>
+                <Calendar className="w-4 h-4 text-industrial-600" />
+              </div>
+              <div className="text-lg font-black text-industrial-900 font-mono">
+                {creditLedger?.dueDate ? formatDate(creditLedger.dueDate) : 'No Dues Pending'}
+              </div>
+              <p className="text-[10px] text-industrial-400 pt-1">Direct NEFT/RTGS settlement</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Left: Apply for Credit / Limit Revision (5 cols) */}
+            <div className="lg:col-span-5 bg-white p-6 rounded-3xl border border-industrial-200 shadow-card space-y-5">
+              <div className="border-b border-industrial-100 pb-3">
+                <h3 className="font-bold text-sm text-industrial-950 flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-brand-600" />
+                  <span>Apply for B2B Procurement Credit</span>
+                </h3>
+                <p className="text-[11px] text-industrial-500 mt-0.5">
+                  Unlock 15-90 days interest-free working capital for steel, cement, and electricals.
+                </p>
+              </div>
+
+              {creditResult && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs space-y-1">
+                  <div className="font-bold flex items-center gap-1.5">
+                    <Check className="w-4 h-4 text-emerald-600" />
+                    <span>Application Submitted Successfully</span>
+                  </div>
+                  <p className="text-[11px]">
+                    Reference ID: <strong className="font-mono">{creditResult.applicationId}</strong>. Status: <strong>{creditResult.status}</strong>.
+                  </p>
+                </div>
+              )}
+
+              <form onSubmit={handleApplyCredit} className="space-y-4">
+                <div>
+                  <label className="block text-[11px] font-bold text-industrial-700 mb-1">
+                    Company Name
+                  </label>
+                  <input
+                    type="text"
+                    value={user.companyName || user.name || ''}
+                    disabled
+                    className="w-full p-2.5 bg-industrial-100 border border-industrial-200 rounded-xl text-industrial-600 text-xs font-semibold cursor-not-allowed"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-industrial-700 mb-1">
+                      GSTIN
+                    </label>
+                    <input
+                      type="text"
+                      value={user.gstin || ''}
+                      disabled
+                      className="w-full p-2.5 bg-industrial-100 border border-industrial-200 rounded-xl text-industrial-600 text-xs font-mono font-semibold cursor-not-allowed"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-industrial-700 mb-1">
+                      PAN Number
+                    </label>
+                    <input
+                      type="text"
+                      value={user.panNumber || (user.gstin ? user.gstin.substring(2, 12) : 'AABCH9988C')}
+                      disabled
+                      className="w-full p-2.5 bg-industrial-100 border border-industrial-200 rounded-xl text-industrial-600 text-xs font-mono font-semibold cursor-not-allowed"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-industrial-700 mb-1">
+                    Requested Credit Limit (INR)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-industrial-500 font-bold">₹</span>
+                    <input
+                      type="number"
+                      step={50000}
+                      min={100000}
+                      value={creditRequestedLimit}
+                      onChange={(e) => setCreditRequestedLimit(Number(e.target.value))}
+                      className="w-full pl-7 pr-3 py-2.5 border border-industrial-300 rounded-xl text-xs font-mono font-bold text-industrial-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      required
+                    />
+                  </div>
+                  <span className="text-[10px] text-industrial-400 mt-1 block">
+                    e.g. ₹10,00,000 (10 Lakhs) to ₹1,00,00,000 (1 Crore)
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-industrial-700 mb-1">
+                      Desired Credit Tenure
+                    </label>
+                    <select
+                      value={creditTenureDays}
+                      onChange={(e) => setCreditTenureDays(Number(e.target.value))}
+                      className="w-full p-2.5 border border-industrial-300 rounded-xl text-xs font-semibold text-industrial-900 focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+                    >
+                      <option value={15}>15 Days Net</option>
+                      <option value={30}>30 Days Net</option>
+                      <option value={45}>45 Days Net</option>
+                      <option value={60}>60 Days Net</option>
+                      <option value={90}>90 Days (Enterprise)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-industrial-700 mb-1">
+                      Annual Turnover (INR)
+                    </label>
+                    <input
+                      type="number"
+                      step={500000}
+                      value={creditTurnover}
+                      onChange={(e) => setCreditTurnover(Number(e.target.value))}
+                      className="w-full p-2.5 border border-industrial-300 rounded-xl text-xs font-mono font-semibold text-industrial-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-industrial-700 mb-1">
+                    Project / Infrastructure Requirements (Optional)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={creditNotes}
+                    onChange={(e) => setCreditNotes(e.target.value)}
+                    placeholder="Brief description of active sites, ongoing EPC projects, or monthly procurement budget..."
+                    className="w-full p-2.5 border border-industrial-300 rounded-xl text-xs text-industrial-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  />
+                </div>
+
+                <div className="p-3 bg-industrial-50 rounded-xl border border-industrial-200 text-[11px] text-industrial-600 space-y-1">
+                  <div className="font-bold text-industrial-800 flex items-center gap-1">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>NBFC & Banking Partner Verification</span>
+                  </div>
+                  <p>
+                    Collateral-free credit limit evaluated using GST e-invoices and banking bureau score. Fast turnaround in 24 hours.
+                  </p>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isApplyingCredit}
+                  className="w-full py-3 bg-[#d9232d] hover:bg-rose-700 text-white rounded-xl font-bold text-xs shadow-md transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {isApplyingCredit ? 'Submitting Application...' : 'Submit Credit Application'}
+                </button>
+              </form>
+            </div>
+
+            {/* Right: Credit Ledger Statement (7 cols) */}
+            <div className="lg:col-span-7 bg-white p-6 rounded-3xl border border-industrial-200 shadow-card space-y-4">
+              <div className="flex items-center justify-between border-b border-industrial-100 pb-3">
+                <div>
+                  <h3 className="font-bold text-sm text-industrial-950">
+                    Trade Credit Ledger & Account Statement
+                  </h3>
+                  <p className="text-[11px] text-industrial-500 mt-0.5">
+                    Real-time itemized record of order drawdowns, bank repayments, and settlement dates.
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setIsLoadingCredit(true);
+                    creditApi.getCreditLedger().then(setCreditLedger).finally(() => setIsLoadingCredit(false));
+                  }}
+                  className="px-3 py-1.5 bg-industrial-100 hover:bg-industrial-200 rounded-xl text-[11px] font-bold text-industrial-800 transition-colors cursor-pointer"
+                >
+                  Refresh Statement
+                </button>
+              </div>
+
+              {isLoadingCredit ? (
+                <div className="p-12 text-center text-xs text-industrial-400">
+                  Loading trade credit statement...
+                </div>
+              ) : creditLedger && creditLedger.transactions && creditLedger.transactions.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-industrial-100 text-[10px] text-industrial-400 uppercase">
+                        <th className="py-2.5 font-bold">Date</th>
+                        <th className="py-2.5 font-bold">Type</th>
+                        <th className="py-2.5 font-bold">Description</th>
+                        <th className="py-2.5 font-bold">Ref No</th>
+                        <th className="py-2.5 font-bold text-right">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-industrial-50">
+                      {creditLedger.transactions.map((tx) => (
+                        <tr key={tx.transactionId} className="hover:bg-industrial-50/50">
+                          <td className="py-3 text-industrial-600 font-mono text-[11px]">
+                            {formatDate(tx.date)}
+                          </td>
+                          <td className="py-3">
+                            <span
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                tx.type === 'REPAYMENT'
+                                  ? 'bg-emerald-50 text-emerald-800'
+                                  : 'bg-rose-50 text-rose-800'
+                              }`}
+                            >
+                              {tx.type === 'REPAYMENT' ? (
+                                <ArrowDownLeft className="w-3 h-3 text-emerald-600" />
+                              ) : (
+                                <ArrowUpRight className="w-3 h-3 text-rose-600" />
+                              )}
+                              <span>{tx.type}</span>
+                            </span>
+                          </td>
+                          <td className="py-3 font-semibold text-industrial-900 max-w-xs truncate">
+                            {tx.description}
+                          </td>
+                          <td className="py-3 font-mono text-[11px] text-industrial-500">
+                            {tx.referenceNumber || '—'}
+                          </td>
+                          <td
+                            className={`py-3 text-right font-mono font-bold ${
+                              tx.type === 'REPAYMENT' ? 'text-emerald-700' : 'text-industrial-900'
+                            }`}
+                          >
+                            {tx.type === 'REPAYMENT' ? '-' : '+'}{formatINR(tx.amount)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="py-12 px-4 text-center space-y-3 bg-industrial-50/60 rounded-2xl border border-dashed border-industrial-200">
+                  <div className="w-12 h-12 rounded-2xl bg-white border border-industrial-200 flex items-center justify-center mx-auto text-industrial-400 shadow-2xs">
+                    <CreditCard className="w-6 h-6 text-brand-600" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-sm text-industrial-900">
+                      No Drawdown Statements Yet
+                    </h4>
+                    <p className="text-xs text-industrial-500 max-w-md mx-auto mt-1 leading-relaxed">
+                      Submit your credit line application using the form on the left. Once approved by our financing partners, choose "30-Day B2B Trade Credit" during checkout to place orders with deferred payment.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

@@ -8,8 +8,10 @@ import { useChatStore } from '../../store/useChatStore';
 import { categoryApi } from '../../api/categoryApi';
 import { searchApi } from '../../api/searchApi';
 import { notificationApi } from '../../api/notificationApi';
+import { productApi } from '../../api/productApi';
 import type { Notification, Category, SearchSuggestions } from '../../types';
 import { useAuthModalStore } from '../../store/useAuthModalStore';
+import { useWishlistStore } from '../../store/useWishlistStore';
 import {
   Search,
   MapPin,
@@ -97,17 +99,23 @@ export const Header: React.FC = () => {
     }
 
     const timer = setTimeout(() => {
-      searchApi
-        .getSuggestions(searchQuery)
-        .then((data) => {
-          setSuggestions(data);
-          const hasResults =
-            data.suggestions.length > 0 ||
-            data.matchingCategories.length > 0 ||
-            data.matchingBrands.length > 0;
-          setIsSuggestionsOpen(hasResults);
-        })
-        .catch(() => setIsSuggestionsOpen(false));
+      Promise.all([
+        searchApi.getSuggestions(searchQuery).catch(() => ({ suggestions: [], matchingCategories: [], matchingBrands: [] })),
+        productApi.getSearchSuggestions(searchQuery).catch(() => []),
+      ]).then(([searchData, productItems]) => {
+        const extraSuggestions = productItems.map((p) => p.title).filter(Boolean);
+        const combinedSuggestions = Array.from(new Set([...(searchData.suggestions || []), ...extraSuggestions]));
+        const mergedData: SearchSuggestions = {
+          ...searchData,
+          suggestions: combinedSuggestions,
+        };
+        setSuggestions(mergedData);
+        const hasResults =
+          mergedData.suggestions.length > 0 ||
+          (mergedData.matchingCategories && mergedData.matchingCategories.length > 0) ||
+          (mergedData.matchingBrands && mergedData.matchingBrands.length > 0);
+        setIsSuggestionsOpen(hasResults);
+      }).catch(() => setIsSuggestionsOpen(false));
     }, 200);
 
     return () => clearTimeout(timer);
@@ -132,11 +140,28 @@ export const Header: React.FC = () => {
     }
   };
 
+  const { items: wishlistItems } = useWishlistStore();
+
   const unreadNotifs = notifications.filter((n) => !n.isRead);
 
   const handleMarkAllRead = async () => {
     await notificationApi.markAllAsRead();
     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+  };
+
+  const handleMarkSingleRead = async (notifId: string, link?: string) => {
+    try {
+      await notificationApi.markAsRead(notifId);
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === notifId ? { ...n, isRead: true } : n))
+      );
+    } catch (err) {
+      console.warn('Backend markAsRead warning:', err);
+    }
+    if (link) {
+      setIsNotifOpen(false);
+      navigate(link);
+    }
   };
 
   return (
@@ -317,6 +342,24 @@ export const Header: React.FC = () => {
             <span className="w-2 h-2 bg-emerald-500 rounded-full absolute top-1.5 right-1.5 ring-2 ring-white"></span>
           </button>
 
+          {/* Saved Wishlist Icon Button */}
+          <button
+            onClick={() => {
+              if (!isUserLoggedIn) openAuthModal();
+              else navigate('/wishlist');
+            }}
+            className="p-2 rounded-xl border border-industrial-200 hover:bg-industrial-100 text-industrial-700 hover:text-industrial-900 relative transition-colors cursor-pointer"
+            title="Saved Wishlist"
+            aria-label="Wishlist"
+          >
+            <Heart className="w-4 h-4" />
+            {wishlistItems.length > 0 && (
+              <span className="w-4 h-4 bg-[#d9232d] text-white text-[9px] font-bold rounded-full absolute -top-1 -right-1 flex items-center justify-center border-2 border-white">
+                {wishlistItems.length}
+              </span>
+            )}
+          </button>
+
           {/* Notifications Bell */}
           <div className="relative" ref={notifRef}>
             <button
@@ -373,7 +416,8 @@ export const Header: React.FC = () => {
                       notifications.map((notif) => (
                         <div
                           key={notif.id}
-                          className={`p-3.5 text-xs space-y-1 hover:bg-industrial-50 transition-colors ${
+                          onClick={() => handleMarkSingleRead(notif.id, notif.link)}
+                          className={`p-3.5 text-xs space-y-1 hover:bg-industrial-50 transition-colors cursor-pointer ${
                             !notif.isRead ? 'bg-brand-50/50' : ''
                           }`}
                         >

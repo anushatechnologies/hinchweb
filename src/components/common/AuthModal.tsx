@@ -1,13 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useAuthModalStore } from '../../store/useAuthModalStore';
 import { useToastStore } from '../../store/useToastStore';
 import {
   isFirebaseConfigured,
   signInWithGoogle,
+  signInWithEmail,
+  registerWithEmail,
   createRecaptchaVerifier,
   sendFirebasePhoneOtp,
   confirmFirebasePhoneOtp,
+  getFriendlyFirebaseErrorMessage,
 } from '../../services/firebase';
 import type { ConfirmationResult } from 'firebase/auth';
 import {
@@ -21,43 +24,67 @@ import {
   CheckCircle2,
   AlertCircle,
   UserCheck,
+  Smartphone,
+  UserPlus,
 } from 'lucide-react';
 
 export const AuthModal: React.FC = () => {
-  const { isOpen, closeAuthModal } = useAuthModalStore();
+  const { isOpen, initialMode, initialPhone, closeAuthModal } = useAuthModalStore();
   const {
-    loginWithFirebaseToken,
+    syncWithBackend,
     completeProfile,
-    loginWithPassword,
-    sendOtp,
-    verifyOtp,
+    checkPhone,
   } = useAuthStore();
   const { showToast } = useToastStore();
 
-  const [authMode, setAuthMode] = useState<'otp' | 'password'>('otp');
+  const [authMode, setAuthMode] = useState<'otp' | 'email'>('otp');
+  const [isEmailRegister, setIsEmailRegister] = useState(false);
   const [identifier, setIdentifier] = useState('');
-  const [otpStep, setOtpStep] = useState<'send' | 'verify' | 'complete-profile'>('send');
+  const [otpStep, setOtpStep] = useState<'send' | 'verify' | 'register' | 'complete-profile'>('send');
   const [otpCode, setOtpCode] = useState('');
+  const [emailInput, setEmailInput] = useState('');
   const [password, setPassword] = useState('');
+  const [phoneExistsHint, setPhoneExistsHint] = useState<boolean | null>(null);
   const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Profile completion state (Step 6 & 7)
+  // Profile & Registration Form State
   const [profileName, setProfileName] = useState('');
   const [profileEmail, setProfileEmail] = useState('');
   const [profilePhone, setProfilePhone] = useState('');
   const [profileCompany, setProfileCompany] = useState('');
   const [profileGstin, setProfileGstin] = useState('');
 
+  // Sync initial mode & phone when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      if (initialMode === 'register') {
+        setOtpStep('register');
+        if (initialPhone) {
+          setIdentifier(initialPhone);
+          setProfilePhone(initialPhone);
+        }
+      } else {
+        setOtpStep('send');
+        if (initialPhone) {
+          setIdentifier(initialPhone);
+        }
+      }
+    }
+  }, [isOpen, initialMode, initialPhone]);
+
   if (!isOpen) return null;
 
   const resetModalState = () => {
     setAuthMode('otp');
+    setIsEmailRegister(false);
     setOtpStep('send');
     setIdentifier('');
     setOtpCode('');
+    setEmailInput('');
     setPassword('');
+    setPhoneExistsHint(null);
     setConfirmationResult(null);
     setErrorMessage(null);
     setProfileName('');
@@ -73,156 +100,219 @@ export const AuthModal: React.FC = () => {
   };
 
   /**
-   * Step 1 & 2: User enters Phone / Email and requests OTP
+   * Navigate to Register page / step if account does not exist
+   */
+  const handleNavigateToSignUp = () => {
+    const rawDigits = identifier.replace(/\D/g, '');
+    const formatted = identifier.startsWith('+') ? identifier : rawDigits ? `+91${rawDigits}` : '';
+    setProfilePhone(formatted || identifier);
+    setOtpStep('register');
+    setErrorMessage(null);
+  };
+
+  /**
+   * Phone OTP Step 1: Send OTP via Firebase
    */
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setErrorMessage(null);
 
     const cleanInput = identifier.trim();
     if (!cleanInput) {
-      showToast('error', 'Please enter your registered Email or Mobile Number', 'Required Field');
+      showToast('error', 'Please enter your 10-digit mobile number', 'Required Field');
       return;
     }
 
+    const numericPhone = cleanInput.replace(/\D/g, '');
+    if (numericPhone.length < 10) {
+      setErrorMessage('Please enter a valid 10-digit mobile phone number.');
+      return;
+    }
+
+    const formattedPhone = cleanInput.startsWith('+') ? cleanInput : `+91${numericPhone}`;
+
     setIsSubmitting(true);
     try {
-      const numericPhone = cleanInput.replace(/\D/g, '');
-      const isPhone = numericPhone.length >= 10 && !cleanInput.includes('@');
-      const formattedPhone = cleanInput.startsWith('+') ? cleanInput : `+91${numericPhone}`;
+      // Step 4 in flow: Check if phone number exists in backend
+      try {
+        const phoneCheck = await checkPhone(formattedPhone);
 
-      // If Firebase is configured and user inputted a phone number, use genuine Firebase Phone OTP
-      if (isFirebaseConfigured && isPhone) {
-        try {
-          const verifier = createRecaptchaVerifier('recaptcha-container', { size: 'invisible' });
-          if (verifier) {
-            const confirmation = await sendFirebasePhoneOtp(formattedPhone, verifier);
-            setConfirmationResult(confirmation);
-            setProfilePhone(formattedPhone);
-            setOtpStep('verify');
-            showToast('success', `Verification code sent via SMS to ${formattedPhone}`, 'Firebase OTP Sent');
-            return;
-          }
-        } catch (fbErr: any) {
-          console.warn('[Firebase] Phone OTP dispatch failed, falling back:', fbErr);
-          // Fall through to fallback test mode
+        // If phone does not exist, directly navigate to the registration form
+        if (phoneCheck.exists === false) {
+          setProfilePhone(formattedPhone);
+          setOtpStep('register');
+          setIsSubmitting(false);
+          showToast('info', `No registered account found for ${formattedPhone}. Directing to sign up...`, 'New User Registration');
+          return;
         }
+      } catch {
+        // Continue if check-phone fails
       }
 
-      // Backend / fallback OTP dispatch
-      const res = await sendOtp(cleanInput);
+      if (!isFirebaseConfigured) {
+        throw new Error(
+          'Firebase Authentication is not configured with API credentials. Please set VITE_FIREBASE_API_KEY and VITE_FIREBASE_PROJECT_ID in your environment.'
+        );
+      }
+
+      const verifier = createRecaptchaVerifier('recaptcha-container', { size: 'invisible' });
+      if (!verifier) {
+        throw new Error('Unable to initialize reCAPTCHA verifier for phone authentication.');
+      }
+
+      const confirmation = await sendFirebasePhoneOtp(formattedPhone, verifier);
+      setConfirmationResult(confirmation);
       setProfilePhone(formattedPhone);
       setOtpStep('verify');
-      if (res.otpCode) {
-        setOtpCode(res.otpCode);
-      }
-      showToast('success', res.message || `OTP dispatched to ${cleanInput}`, 'OTP Sent');
+      showToast('success', `Verification code sent via SMS to ${formattedPhone}`, 'OTP Sent');
     } catch (err: any) {
-      const msg = err.message || 'Failed to send verification OTP. Please try again.';
-      setErrorMessage(msg);
-      showToast('error', msg, 'OTP Error');
+      const friendlyMsg = getFriendlyFirebaseErrorMessage(err);
+      setErrorMessage(friendlyMsg);
+      showToast('error', friendlyMsg, 'OTP Error');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   /**
-   * Step 2, 3, 4, 5, 6: Verify OTP, extract token, sync user with MySQL, and check profile status
+   * Registration Step: Sends OTP with pre-filled profile details
+   */
+  const handleRegisterSendOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isSubmitting) return;
+    setErrorMessage(null);
+
+    if (!profileName.trim() || !profileEmail.trim()) {
+      showToast('error', 'Full Name and Work Email are required for registration.', 'Required Fields');
+      return;
+    }
+
+    const rawDigits = (profilePhone || identifier).replace(/\D/g, '');
+    if (rawDigits.length < 10) {
+      setErrorMessage('Please provide a valid 10-digit mobile phone number.');
+      return;
+    }
+
+    const formattedPhone = (profilePhone || identifier).startsWith('+')
+      ? (profilePhone || identifier)
+      : `+91${rawDigits}`;
+
+    setIsSubmitting(true);
+    try {
+      if (!isFirebaseConfigured) {
+        throw new Error(
+          'Firebase Authentication is not configured with API credentials. Please set VITE_FIREBASE_API_KEY and VITE_FIREBASE_PROJECT_ID in your environment.'
+        );
+      }
+
+      const verifier = createRecaptchaVerifier('recaptcha-container', { size: 'invisible' });
+      if (!verifier) {
+        throw new Error('Unable to initialize reCAPTCHA verifier for phone authentication.');
+      }
+
+      const confirmation = await sendFirebasePhoneOtp(formattedPhone, verifier);
+      setConfirmationResult(confirmation);
+      setProfilePhone(formattedPhone);
+      setOtpStep('verify');
+      showToast('success', `Verification code sent via SMS to ${formattedPhone}`, 'OTP Sent');
+    } catch (err: any) {
+      const friendlyMsg = getFriendlyFirebaseErrorMessage(err);
+      setErrorMessage(friendlyMsg);
+      showToast('error', friendlyMsg, 'OTP Error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  /**
+   * Phone OTP Step 2: Verify OTP with Firebase and Synchronize with Backend
    */
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setErrorMessage(null);
 
-    if (!otpCode.trim()) {
+    const code = otpCode.trim();
+    if (!code || code.length !== 6) {
       showToast('error', 'Please enter the 6-digit verification code', 'Code Required');
       return;
     }
 
+    if (!confirmationResult) {
+      setErrorMessage('Verification session expired. Please request a new verification code.');
+      setOtpStep('send');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      let token = '';
+      // Step 5 & 6: Firebase verifies the OTP and issues a Firebase ID Token
+      const { idToken } = await confirmFirebasePhoneOtp(confirmationResult, code);
 
-      if (confirmationResult) {
-        // Step 2 & 3: Confirm with Firebase and extract Firebase ID Token (JWT)
-        const cred = await confirmFirebasePhoneOtp(confirmationResult, otpCode.trim());
-        token = await cred.user.getIdToken();
-      } else {
-        // Test / demo mode token
-        await verifyOtp(identifier.trim(), otpCode.trim());
-        token = localStorage.getItem('hinchmart_auth_token') || 'jwt_session_' + Date.now();
-      }
+      // Step 7 & 8: Call POST /api/auth/sync with the Firebase ID Token
+      const syncedUser = await syncWithBackend(idToken, {
+        phone: profilePhone || identifier,
+        name: profileName || null,
+        email: profileEmail || null,
+      });
 
-      // Step 4 & 5: Frontend calls POST /api/auth/sync with Authorization: Bearer <firebase_id_token>
-      const syncedUser = await loginWithFirebaseToken(token, {});
-
-      // Step 6: Frontend inspects the response
-      const hasRealName = Boolean(syncedUser.name && syncedUser.name.trim());
-      const hasRealEmail = Boolean(syncedUser.email && syncedUser.email.trim());
-
-      if (!hasRealName || !hasRealEmail || !syncedUser.isProfileComplete) {
-        // Show Profile Completion screen
+      // Step 12: Navigate according to role and profile-completion status
+      if (!syncedUser.isProfileComplete || !syncedUser.name || !syncedUser.email) {
         setProfilePhone(syncedUser.phone || identifier);
-        setProfileName(syncedUser.name || '');
-        setProfileEmail(syncedUser.email || '');
+        setProfileName(syncedUser.name || profileName || '');
+        setProfileEmail(syncedUser.email || profileEmail || '');
         setOtpStep('complete-profile');
         showToast('info', 'Phone verified! Please complete your name and business email.', 'Profile Incomplete');
       } else {
-        // User profile already complete
         showToast('success', `Welcome back, ${syncedUser.name}!`, 'Authentication Successful');
         handleClose();
       }
     } catch (err: any) {
-      if (err.statusCode === 409 || err.message?.includes('already in use')) {
-        const conflictMsg = err.message || 'Phone number is already in use by another account.';
-        setErrorMessage(conflictMsg);
-        showToast('error', conflictMsg, 'Account Conflict (409)');
-      } else {
-        const msg = err.message || 'Invalid or expired verification code.';
-        setErrorMessage(msg);
-        showToast('error', msg, 'Verification Failed');
-      }
+      const msg = err.statusCode === 409
+        ? 'This phone number is already associated with another account.'
+        : getFriendlyFirebaseErrorMessage(err);
+      setErrorMessage(msg);
+      showToast('error', msg, 'Verification Failed');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   /**
-   * Google OAuth Sign-in (Case B: Registration / Login with Full Real Values)
+   * Google Sign-in: Authenticate with Firebase & Synchronize with Backend
    */
   const handleGoogleSignIn = async () => {
+    if (isSubmitting) return;
     setErrorMessage(null);
     setIsSubmitting(true);
     try {
-      const cred = await signInWithGoogle();
-      const token = await cred.user.getIdToken();
+      if (!isFirebaseConfigured) {
+        throw new Error(
+          'Firebase Authentication is not configured. Please supply valid Firebase credentials in .env.'
+        );
+      }
 
-      const initialPayload = {
-        name: cred.user.displayName || null,
-        email: cred.user.email || null,
-        phone: cred.user.phoneNumber || null,
-        role: 'BUYER',
-      };
+      const { credential, idToken } = await signInWithGoogle();
+      const syncedUser = await syncWithBackend(idToken, {
+        name: credential.user.displayName,
+        email: credential.user.email,
+        phone: credential.user.phoneNumber,
+      });
 
-      // Step 4: POST /api/auth/sync with known Google profile details
-      const syncedUser = await loginWithFirebaseToken(token, initialPayload);
-
-      // Step 6: Check profile completion
-      const hasRealName = Boolean(syncedUser.name && syncedUser.name.trim());
-      const hasRealEmail = Boolean(syncedUser.email && syncedUser.email.trim());
-
-      if (!hasRealName || !hasRealEmail || !syncedUser.isProfileComplete) {
-        setProfileName(syncedUser.name || cred.user.displayName || '');
-        setProfileEmail(syncedUser.email || cred.user.email || '');
-        setProfilePhone(syncedUser.phone || cred.user.phoneNumber || '');
+      if (!syncedUser.isProfileComplete || !syncedUser.name || !syncedUser.email) {
+        setProfileName(syncedUser.name || credential.user.displayName || '');
+        setProfileEmail(syncedUser.email || credential.user.email || '');
+        setProfilePhone(syncedUser.phone || credential.user.phoneNumber || '');
         setOtpStep('complete-profile');
-        showToast('info', 'Please complete your business details to finalize your account.', 'Profile Completion');
+        showToast('info', 'Please confirm your business details to complete registration.', 'Profile Completion');
       } else {
-        showToast('success', `Welcome, ${syncedUser.name}!`, 'Google Sign-In Successful');
+        showToast('success', `Welcome, ${syncedUser.name}!`, 'Signed In with Google');
         handleClose();
       }
     } catch (err: any) {
-      if (err.code !== 'auth/popup-closed-by-user') {
-        const msg = err.message || 'Google sign-in failed. Please try again.';
+      if ((err as { code?: string }).code !== 'auth/popup-closed-by-user') {
+        const msg = getFriendlyFirebaseErrorMessage(err);
         setErrorMessage(msg);
         showToast('error', msg, 'Authentication Error');
       }
@@ -232,14 +322,65 @@ export const AuthModal: React.FC = () => {
   };
 
   /**
-   * Step 7: User completes profile (PUT /api/user/profile)
+   * Email/Password Sign-in or Registration
+   */
+  const handleEmailAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isSubmitting) return;
+    setErrorMessage(null);
+
+    const email = emailInput.trim();
+    if (!email || !password.trim()) {
+      showToast('error', 'Please enter email and password', 'Incomplete Form');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      if (!isFirebaseConfigured) {
+        throw new Error('Firebase Authentication is not configured in this environment.');
+      }
+
+      let idToken = '';
+      if (isEmailRegister) {
+        const res = await registerWithEmail(email, password);
+        idToken = res.idToken;
+      } else {
+        const res = await signInWithEmail(email, password);
+        idToken = res.idToken;
+      }
+
+      const syncedUser = await syncWithBackend(idToken, { email });
+
+      if (!syncedUser.isProfileComplete || !syncedUser.name) {
+        setProfileEmail(syncedUser.email || email);
+        setProfileName(syncedUser.name || '');
+        setProfilePhone(syncedUser.phone || '');
+        setOtpStep('complete-profile');
+        showToast('info', 'Please complete your business profile.', 'Profile Required');
+      } else {
+        showToast('success', `Welcome back, ${syncedUser.name}!`, 'Signed In');
+        handleClose();
+      }
+    } catch (err: any) {
+      const msg = getFriendlyFirebaseErrorMessage(err);
+      setErrorMessage(msg);
+      showToast('error', msg, 'Sign In Error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  /**
+   * Profile Completion Step: PUT /api/user/profile
    */
   const handleCompleteProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setErrorMessage(null);
 
     if (!profileName.trim() || !profileEmail.trim()) {
-      showToast('error', 'Full Name and Business Email are required.', 'Required Fields');
+      showToast('error', 'Full Legal Name and Business Email are required.', 'Required Fields');
       return;
     }
 
@@ -256,40 +397,9 @@ export const AuthModal: React.FC = () => {
       showToast('success', `Welcome to HinchMart, ${updatedUser.name}! Profile verified.`, 'Profile Complete');
       handleClose();
     } catch (err: any) {
-      if (err.statusCode === 409 || err.message?.includes('already in use')) {
-        const conflictMsg = err.message || 'Phone number or email is already registered to another account.';
-        setErrorMessage(conflictMsg);
-        showToast('error', conflictMsg, 'Duplicate Field (409)');
-      } else {
-        const msg = err.message || 'Failed to update user profile. Please try again.';
-        setErrorMessage(msg);
-        showToast('error', msg, 'Profile Update Error');
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  /**
-   * Login with password
-   */
-  const handlePasswordLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage(null);
-    if (!identifier.trim() || !password.trim()) {
-      showToast('error', 'Please enter your credentials', 'Incomplete Form');
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const loggedUser = await loginWithPassword(identifier.trim(), password.trim());
-      showToast('success', `Authenticated as ${loggedUser.name || loggedUser.companyName}`, 'Login Successful');
-      handleClose();
-    } catch (err: any) {
-      const msg = err.message || 'Invalid credentials.';
+      const msg = err.message || 'Failed to update user profile. Please try again.';
       setErrorMessage(msg);
-      showToast('error', msg, 'Login Error');
+      showToast('error', msg, 'Profile Update Error');
     } finally {
       setIsSubmitting(false);
     }
@@ -297,11 +407,12 @@ export const AuthModal: React.FC = () => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-industrial-950/75 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border border-industrial-200 relative animate-in zoom-in-95">
+      <div className="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border border-industrial-200 relative animate-in zoom-in-95 max-h-[95vh] overflow-y-auto">
         {/* Close Button */}
         <button
           onClick={handleClose}
-          className="absolute top-4 right-4 p-2 rounded-full text-industrial-400 hover:text-industrial-700 hover:bg-industrial-100 transition-colors z-10"
+          className="absolute top-4 right-4 p-2 rounded-full text-industrial-400 hover:text-industrial-700 hover:bg-industrial-100 transition-colors z-10 cursor-pointer"
+          aria-label="Close authentication modal"
         >
           <X className="w-5 h-5" />
         </button>
@@ -310,7 +421,9 @@ export const AuthModal: React.FC = () => {
         <div className="bg-gradient-to-r from-industrial-950 via-slate-900 to-industrial-950 p-6 text-white text-center relative overflow-hidden">
           <div className="flex justify-center mb-3">
             <div className="bg-white/10 backdrop-blur-md p-3 rounded-2xl border border-white/15 shadow-inner">
-              {otpStep === 'complete-profile' ? (
+              {otpStep === 'register' ? (
+                <UserPlus className="w-8 h-8 text-brand-400" />
+              ) : otpStep === 'complete-profile' ? (
                 <UserCheck className="w-8 h-8 text-emerald-400" />
               ) : (
                 <Building2 className="w-8 h-8 text-brand-400" />
@@ -319,16 +432,22 @@ export const AuthModal: React.FC = () => {
           </div>
 
           <h3 className="text-xl font-black tracking-tight text-white">
-            {otpStep === 'complete-profile' ? 'Complete Buyer Profile' : 'HinchMart B2B Enterprise Access'}
+            {otpStep === 'register'
+              ? 'New Buyer Registration'
+              : otpStep === 'complete-profile'
+              ? 'Complete Buyer Profile'
+              : 'HinchMart Enterprise Procurement'}
           </h3>
           <p className="text-xs text-industrial-300 mt-1">
-            {otpStep === 'complete-profile'
-              ? 'Enter real name and work email to finalize procurement activation'
-              : 'Real-time GST-verified buyer & contractor procurement portal'}
+            {otpStep === 'register'
+              ? 'Create a verified procurement account for wholesale pricing'
+              : otpStep === 'complete-profile'
+              ? 'Enter legal name and work email to finalize account activation'
+              : 'Secure B2B authentication with Firebase & HinchMart JWT tokens'}
           </p>
 
-          {/* Mode Switcher (only shown when not on profile completion) */}
-          {otpStep !== 'complete-profile' && (
+          {/* Mode Switcher */}
+          {otpStep !== 'complete-profile' && otpStep !== 'register' && (
             <div className="flex justify-center gap-2 mt-4 bg-white/10 p-1 rounded-xl max-w-xs mx-auto text-xs font-bold">
               <button
                 type="button"
@@ -337,23 +456,23 @@ export const AuthModal: React.FC = () => {
                   setOtpStep('send');
                   setErrorMessage(null);
                 }}
-                className={`flex-1 py-1.5 rounded-lg transition-all ${
+                className={`flex-1 py-1.5 rounded-lg transition-all cursor-pointer ${
                   authMode === 'otp' ? 'bg-brand-600 text-white shadow-sm' : 'text-industrial-300 hover:text-white'
                 }`}
               >
-                Instant OTP Login
+                Phone OTP
               </button>
               <button
                 type="button"
                 onClick={() => {
-                  setAuthMode('password');
+                  setAuthMode('email');
                   setErrorMessage(null);
                 }}
-                className={`flex-1 py-1.5 rounded-lg transition-all ${
-                  authMode === 'password' ? 'bg-brand-600 text-white shadow-sm' : 'text-industrial-300 hover:text-white'
+                className={`flex-1 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  authMode === 'email' ? 'bg-brand-600 text-white shadow-sm' : 'text-industrial-300 hover:text-white'
                 }`}
               >
-                Password
+                Email
               </button>
             </div>
           )}
@@ -361,7 +480,7 @@ export const AuthModal: React.FC = () => {
 
         {/* Modal Body */}
         <div className="p-6 space-y-4">
-          {/* Error / 409 Conflict Banner */}
+          {/* Error Banner */}
           {errorMessage && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-start gap-2">
               <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
@@ -369,15 +488,133 @@ export const AuthModal: React.FC = () => {
             </div>
           )}
 
-          {/* STEP 6 & 7: Profile Completion Form */}
-          {otpStep === 'complete-profile' ? (
+          {/* SIGN UP / REGISTRATION FORM */}
+          {otpStep === 'register' ? (
+            <form onSubmit={handleRegisterSendOtp} className="space-y-3.5 text-xs">
+              <div className="p-3 bg-brand-50 rounded-xl border border-brand-200 text-brand-950 text-xs flex items-start gap-2">
+                <UserPlus className="w-4 h-4 text-brand-600 shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-bold">New Account Registration</div>
+                  <div className="text-[11px] text-brand-700 mt-0.5">
+                    Enter your organization details to create your verified customer account.
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-industrial-800 flex items-center justify-between">
+                  <span>Full Legal Name *</span>
+                  <span className="text-[10px] text-red-500 font-semibold">Required</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Rajesh Sharma"
+                  value={profileName}
+                  onChange={(e) => setProfileName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-industrial-50 border border-industrial-300 rounded-xl text-xs text-industrial-900 font-medium focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-industrial-800 flex items-center justify-between">
+                  <span>Business Work Email *</span>
+                  <span className="text-[10px] text-red-500 font-semibold">Required</span>
+                </label>
+                <input
+                  type="email"
+                  required
+                  placeholder="e.g. rajesh@apexinfra.com"
+                  value={profileEmail}
+                  onChange={(e) => setProfileEmail(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-industrial-50 border border-industrial-300 rounded-xl text-xs text-industrial-900 font-medium focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-industrial-800 flex items-center justify-between">
+                  <span>10-Digit Mobile Number *</span>
+                  <span className="text-[10px] text-red-500 font-semibold">SMS OTP Verification</span>
+                </label>
+                <input
+                  type="tel"
+                  required
+                  placeholder="e.g. 9876543210"
+                  value={profilePhone || identifier}
+                  onChange={(e) => {
+                    setProfilePhone(e.target.value);
+                    setIdentifier(e.target.value);
+                  }}
+                  className="w-full px-3.5 py-2.5 bg-industrial-50 border border-industrial-300 rounded-xl text-xs font-mono text-industrial-900 font-medium focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-industrial-800">Company Name (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Apex Infra Projects Pvt Ltd"
+                  value={profileCompany}
+                  onChange={(e) => setProfileCompany(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-industrial-50 border border-industrial-300 rounded-xl text-xs text-industrial-900 font-medium focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-industrial-800">Company GSTIN (Optional)</label>
+                <input
+                  type="text"
+                  maxLength={15}
+                  placeholder="e.g. 36AAACA1234A1Z5"
+                  value={profileGstin}
+                  onChange={(e) => setProfileGstin(e.target.value.toUpperCase())}
+                  className="w-full px-3.5 py-2.5 bg-industrial-50 border border-industrial-300 rounded-xl text-xs font-mono text-industrial-900 font-medium uppercase focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white"
+                />
+              </div>
+
+              <div className="flex gap-2.5 pt-2">
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1 py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-black text-xs shadow-lg shadow-brand-600/30 flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
+                >
+                  <span>{isSubmitting ? 'Sending OTP...' : 'Send OTP & Register'}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOtpStep('send');
+                    setErrorMessage(null);
+                  }}
+                  className="px-4 py-3 border border-industrial-300 hover:bg-industrial-100 text-industrial-700 rounded-xl font-bold text-xs transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
+
+              <div className="text-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOtpStep('send');
+                    setPhoneExistsHint(null);
+                  }}
+                  className="text-brand-600 hover:underline text-[11px] font-semibold cursor-pointer"
+                >
+                  Already have an account? Sign In
+                </button>
+              </div>
+            </form>
+          ) : otpStep === 'complete-profile' ? (
+            /* Complete Profile Form */
             <form onSubmit={handleCompleteProfile} className="space-y-3.5 text-xs">
               <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-900 text-xs flex items-start gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                 <div>
                   <div className="font-bold">Authentication Verified!</div>
                   <div className="text-[11px] text-emerald-700 mt-0.5">
-                    Please provide your name & business email to create your verified customer profile.
+                    Please provide your legal name & work email to complete your verified buyer account.
                   </div>
                 </div>
               </div>
@@ -423,11 +660,11 @@ export const AuthModal: React.FC = () => {
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="font-bold text-industrial-800">Role</label>
+                  <label className="font-bold text-industrial-800">Account Type</label>
                   <input
                     type="text"
                     disabled
-                    value="BUYER"
+                    value="CUSTOMER"
                     className="w-full px-3.5 py-2.5 bg-industrial-100 border border-industrial-200 rounded-xl text-xs text-industrial-600 font-bold font-mono cursor-not-allowed"
                   />
                 </div>
@@ -456,55 +693,94 @@ export const AuthModal: React.FC = () => {
                 />
               </div>
 
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-black text-xs shadow-lg shadow-brand-600/30 flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer mt-2"
-              >
-                <span>{isSubmitting ? 'Saving Profile...' : 'Save Profile & Enter Portal'}</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </form>
-          ) : authMode === 'otp' ? (
-            otpStep === 'send' ? (
-              /* STEP 1: Phone / Email Input */
-              <form onSubmit={handleSendOtp} className="space-y-4 text-xs">
-                <div className="space-y-1.5">
-                  <label className="font-bold text-industrial-800 flex items-center justify-between">
-                    <span>Email or 10-Digit Mobile</span>
-                    <span className="text-[10px] text-industrial-400 font-normal">SMS / Firebase OTP</span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. 9876543210 or user@company.com"
-                      value={identifier}
-                      onChange={(e) => setIdentifier(e.target.value)}
-                      className="w-full pl-9 pr-4 py-3 bg-industrial-50 border border-industrial-300 rounded-xl text-xs text-industrial-900 font-medium focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white"
-                    />
-                    <Mail className="w-4 h-4 text-industrial-400 absolute left-3 top-3.5" />
-                  </div>
-                </div>
-
+              <div className="flex gap-2.5 pt-2">
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full py-3.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-black text-xs shadow-lg shadow-brand-600/30 flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
+                  className="flex-1 py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-black text-xs shadow-lg shadow-brand-600/30 flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
                 >
-                  <span>{isSubmitting ? 'Dispatching OTP...' : 'Send 6-Digit OTP'}</span>
+                  <span>{isSubmitting ? 'Saving Profile...' : 'Save Profile & Enter Portal'}</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  className="px-4 py-3 border border-industrial-300 hover:bg-industrial-100 text-industrial-700 rounded-xl font-bold text-xs transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          ) : authMode === 'otp' ? (
+            otpStep === 'send' ? (
+              /* Phone Input Step */
+              <form onSubmit={handleSendOtp} className="space-y-4 text-xs">
+                <div className="space-y-1.5">
+                  <label className="font-bold text-industrial-800 flex items-center justify-between">
+                    <span>10-Digit Mobile Number</span>
+                    <span className="text-[10px] text-industrial-400 font-normal">SMS OTP Verification</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="tel"
+                      required
+                      placeholder="e.g. 9876543210"
+                      value={identifier}
+                      onChange={(e) => {
+                        setIdentifier(e.target.value);
+                        setPhoneExistsHint(null);
+                      }}
+                      className="w-full pl-9 pr-4 py-3 bg-industrial-50 border border-industrial-300 rounded-xl text-xs text-industrial-900 font-medium focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white"
+                    />
+                    <Smartphone className="w-4 h-4 text-industrial-400 absolute left-3 top-3.5" />
+                  </div>
+                </div>
+
+                {/* If phone exists: Show verified hint */}
+                {phoneExistsHint === true && (
+                  <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 text-[11px] text-emerald-800 flex items-center gap-2">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>Existing account detected. Sign in with OTP.</span>
+                  </div>
+                )}
+
+                <div className="flex gap-2.5">
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="flex-1 py-3.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-black text-xs shadow-lg shadow-brand-600/30 flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
+                  >
+                    <span>{isSubmitting ? 'Sending Firebase OTP...' : 'Send 6-Digit OTP'}</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleClose}
+                    className="px-4 py-3.5 border border-industrial-300 hover:bg-industrial-100 text-industrial-700 rounded-xl font-bold text-xs transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
+
+                <div className="text-center pt-1">
+                  <button
+                    type="button"
+                    onClick={handleNavigateToSignUp}
+                    className="text-brand-600 hover:underline text-[11px] font-semibold cursor-pointer"
+                  >
+                    Don't have an account? Sign Up
+                  </button>
+                </div>
               </form>
             ) : (
-              /* STEP 2 & 3: 6-Digit Verification Code */
+              /* OTP Verification Step */
               <form onSubmit={handleVerifyOtp} className="space-y-4 text-xs">
                 <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-900 text-xs flex items-start gap-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                   <div>
                     <div>OTP dispatched to <strong className="font-mono">{profilePhone || identifier}</strong></div>
                     <div className="text-[11px] text-emerald-700 mt-0.5">
-                      Enter the 6-digit SMS code to synchronize your session with MySQL backend.
+                      Enter the 6-digit SMS code to verify with Firebase and authenticate with HinchMart.
                     </div>
                   </div>
                 </div>
@@ -515,7 +791,7 @@ export const AuthModal: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setOtpStep('send')}
-                      className="text-brand-600 hover:underline text-[11px]"
+                      className="text-brand-600 hover:underline text-[11px] cursor-pointer"
                     >
                       Change Number
                     </button>
@@ -534,27 +810,37 @@ export const AuthModal: React.FC = () => {
                   </div>
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-xs shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
-                >
-                  <ShieldCheck className="w-4 h-4" />
-                  <span>{isSubmitting ? 'Verifying & Synchronizing...' : 'Verify OTP & Authorize Session'}</span>
-                </button>
+                <div className="flex gap-2.5">
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="flex-1 py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-xs shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>{isSubmitting ? 'Verifying & Synchronizing...' : 'Verify OTP & Log In'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleClose}
+                    className="px-4 py-3.5 border border-industrial-300 hover:bg-industrial-100 text-industrial-700 rounded-xl font-bold text-xs transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </form>
             )
           ) : (
-            /* Password Authentication Tab */
-            <form onSubmit={handlePasswordLogin} className="space-y-4 text-xs">
+            /* Email Authentication Tab */
+            <form onSubmit={handleEmailAuth} className="space-y-4 text-xs">
               <div className="space-y-1.5">
-                <label className="font-bold text-industrial-800">Email or Mobile</label>
+                <label className="font-bold text-industrial-800">Email Address</label>
                 <div className="relative">
                   <input
-                    type="text"
+                    type="email"
                     required
-                    value={identifier}
-                    onChange={(e) => setIdentifier(e.target.value)}
+                    placeholder="user@company.com"
+                    value={emailInput}
+                    onChange={(e) => setEmailInput(e.target.value)}
                     className="w-full pl-9 pr-4 py-3 bg-industrial-50 border border-industrial-300 rounded-xl text-xs text-industrial-900 font-medium focus:outline-none focus:ring-2 focus:ring-brand-500"
                   />
                   <Mail className="w-4 h-4 text-industrial-400 absolute left-3 top-3.5" />
@@ -576,18 +862,43 @@ export const AuthModal: React.FC = () => {
                 </div>
               </div>
 
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full py-3.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-black text-xs shadow-lg shadow-brand-600/30 flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
-              >
-                <span>{isSubmitting ? 'Signing in...' : 'Sign In to Account'}</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
+              <div className="flex items-center justify-between text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => setIsEmailRegister(!isEmailRegister)}
+                  className="text-brand-600 hover:underline font-semibold cursor-pointer"
+                >
+                  {isEmailRegister ? 'Already have an account? Sign In' : 'Need an account? Register'}
+                </button>
+              </div>
+
+              <div className="flex gap-2.5">
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1 py-3.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-black text-xs shadow-lg shadow-brand-600/30 flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
+                >
+                  <span>
+                    {isSubmitting
+                      ? 'Authenticating...'
+                      : isEmailRegister
+                      ? 'Create Account & Sync'
+                      : 'Sign In to Account'}
+                  </span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  className="px-4 py-3.5 border border-industrial-300 hover:bg-industrial-100 text-industrial-700 rounded-xl font-bold text-xs transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
             </form>
           )}
 
-          {/* Google Sign-in / Firebase OAuth (Only on send step) */}
+          {/* Google Sign-in (Shown on initial send step) */}
           {otpStep === 'send' && (
             <div className="space-y-3 pt-1">
               <div className="relative flex items-center justify-center">
@@ -628,13 +939,13 @@ export const AuthModal: React.FC = () => {
           {/* Invisible Recaptcha Container for Firebase Phone Verification */}
           <div id="recaptcha-container"></div>
 
-          {/* Footer Security Badges */}
+          {/* Security Badges */}
           <div className="pt-3 border-t border-industrial-100 flex items-center justify-between text-[10px] text-industrial-400">
             <span className="flex items-center gap-1">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
               256-Bit SSL Encrypted
             </span>
-            <span>GSTR-1 & ITC Ready</span>
+            <span>Firebase & HinchMart Secure Sync</span>
           </div>
         </div>
       </div>

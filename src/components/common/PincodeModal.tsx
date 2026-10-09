@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useLocationStore } from '../../store/useLocationStore';
 import { useToastStore } from '../../store/useToastStore';
-import { MapPin, X, Check, Building2, Truck } from 'lucide-react';
+import { MapPin, X, Check, Building2, Truck, Navigation, Loader2 } from 'lucide-react';
 
 const POPULAR_LOCATIONS = [
   { pin: '500081', city: 'Hyderabad', state: 'Telangana', hub: 'Hitec Industrial Corridor' },
@@ -13,25 +13,50 @@ const POPULAR_LOCATIONS = [
 ];
 
 export const PincodeModal: React.FC = () => {
-  const { isOpenModal, closePincodeModal, pincode, city, state, setPincode } = useLocationStore();
+  const {
+    isOpenModal,
+    closePincodeModal,
+    pincode,
+    city,
+    state,
+    setPincode,
+    detectCurrentLocation,
+    isDetectingLocation,
+  } = useLocationStore();
   const { showToast } = useToastStore();
   const [inputPin, setInputPin] = useState(pincode);
 
   if (!isOpenModal) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (inputPin.trim().length === 6) {
-      setPincode(inputPin.trim());
+      await setPincode(inputPin.trim());
       showToast('success', `Delivery destination updated to Pincode ${inputPin.trim()}`, 'Location Set');
     } else {
       showToast('error', 'Please enter a valid 6-digit Indian PIN code', 'Invalid PIN Code');
     }
   };
 
-  const handleSelectLocation = (loc: typeof POPULAR_LOCATIONS[0]) => {
-    setPincode(loc.pin, loc.city, loc.state);
+  const handleSelectLocation = async (loc: typeof POPULAR_LOCATIONS[0]) => {
+    await setPincode(loc.pin, loc.city, loc.state);
     showToast('success', `Delivery set to ${loc.city}, ${loc.state} (${loc.pin})`, 'Location Updated');
+  };
+
+  const handleDetectLocation = async () => {
+    try {
+      const geo = await detectCurrentLocation();
+      if (geo) {
+        setInputPin(geo.pincode);
+        showToast(
+          'success',
+          `GPS resolved to ${geo.area || geo.city}, ${geo.state} (${geo.pincode})`,
+          'Location Detected'
+        );
+      }
+    } catch (err: any) {
+      showToast('error', err?.message || 'Unable to retrieve your GPS coordinates', 'Location Error');
+    }
   };
 
   return (
@@ -41,7 +66,7 @@ export const PincodeModal: React.FC = () => {
         <div className="bg-gradient-to-r from-industrial-900 via-industrial-800 to-industrial-900 text-white p-6 relative">
           <button
             onClick={closePincodeModal}
-            className="absolute top-4 right-4 text-industrial-400 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors"
+            className="absolute top-4 right-4 text-industrial-400 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -80,12 +105,32 @@ export const PincodeModal: React.FC = () => {
               />
               <button
                 type="submit"
-                className="px-6 py-3 bg-brand-600 hover:bg-brand-500 text-white font-semibold rounded-xl transition-all shadow-md shadow-brand-600/20 flex items-center gap-2"
+                className="px-6 py-3 bg-brand-600 hover:bg-brand-500 text-white font-semibold rounded-xl transition-all shadow-md shadow-brand-600/20 flex items-center gap-2 cursor-pointer"
               >
                 Apply
               </button>
             </div>
           </form>
+
+          {/* GPS Auto-Detect Button */}
+          <button
+            type="button"
+            onClick={handleDetectLocation}
+            disabled={isDetectingLocation}
+            className="w-full py-2.5 px-4 rounded-xl border border-brand-200 bg-brand-50/70 hover:bg-brand-100/70 text-brand-700 text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+          >
+            {isDetectingLocation ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin text-brand-600" />
+                <span>Resolving Coordinates with Google Maps API...</span>
+              </>
+            ) : (
+              <>
+                <Navigation className="w-4 h-4 text-brand-600" />
+                <span>Use Current GPS Location (Reverse Geocode)</span>
+              </>
+            )}
+          </button>
 
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-industrial-500 mb-3">
@@ -99,7 +144,7 @@ export const PincodeModal: React.FC = () => {
                     key={loc.pin}
                     type="button"
                     onClick={() => handleSelectLocation(loc)}
-                    className={`flex items-start gap-2.5 p-3 text-left rounded-xl border transition-all ${
+                    className={`flex items-start gap-2.5 p-3 text-left rounded-xl border transition-all cursor-pointer ${
                       isSelected
                         ? 'border-brand-500 bg-brand-50/60 ring-1 ring-brand-500'
                         : 'border-industrial-200 hover:border-industrial-300 hover:bg-industrial-50/80'

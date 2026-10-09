@@ -1,18 +1,24 @@
 import { create } from 'zustand';
 import { locationApi } from '../api/locationApi';
+import type { ReverseGeocodeLocationData } from '../types';
 
 interface LocationState {
   pincode: string;
   city: string;
   state: string;
+  area?: string;
+  district?: string;
+  formattedAddress?: string;
   isInterState: boolean;
   serviceable: boolean;
   estimatedDays: number;
   isExpressAvailable: boolean;
   isOpenModal: boolean;
+  isDetectingLocation: boolean;
   openPincodeModal: () => void;
   closePincodeModal: () => void;
-  setPincode: (pincode: string, city?: string, state?: string) => Promise<void> | void;
+  setPincode: (pincode: string, city?: string, state?: string) => Promise<void>;
+  detectCurrentLocation: () => Promise<ReverseGeocodeLocationData | null>;
 }
 
 const PINCODE_MAP: Record<string, { city: string; state: string; isInterState: boolean }> = {
@@ -33,11 +39,15 @@ export const useLocationStore = create<LocationState>((set) => ({
   pincode: '500081',
   city: 'Hyderabad',
   state: 'Telangana',
+  area: 'Madhapur',
+  district: 'Hyderabad',
+  formattedAddress: 'Madhapur, HITEC City, Hyderabad, Telangana 500081, India',
   isInterState: false,
   serviceable: true,
   estimatedDays: 2,
   isExpressAvailable: true,
   isOpenModal: false,
+  isDetectingLocation: false,
 
   openPincodeModal: () => set({ isOpenModal: true }),
   closePincodeModal: () => set({ isOpenModal: false }),
@@ -63,6 +73,8 @@ export const useLocationStore = create<LocationState>((set) => ({
           pincode: cleanPin,
           city: res.city,
           state: res.state,
+          area: res.area,
+          district: res.district,
           serviceable: res.serviceable,
           estimatedDays: res.estimatedDays,
           isExpressAvailable: res.isExpressAvailable,
@@ -73,5 +85,55 @@ export const useLocationStore = create<LocationState>((set) => ({
       // Keep optimistic values if network error
     }
   },
-}));
 
+  detectCurrentLocation: async (): Promise<ReverseGeocodeLocationData | null> => {
+    if (!navigator.geolocation) {
+      throw new Error('Geolocation is not supported by your browser');
+    }
+
+    set({ isDetectingLocation: true });
+
+    return new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          try {
+            const { latitude, longitude } = position.coords;
+            const geo = await locationApi.reverseGeocode(latitude, longitude);
+
+            set({
+              pincode: geo.pincode,
+              city: geo.city,
+              state: geo.state,
+              area: geo.area,
+              formattedAddress: geo.formattedAddress,
+              isInterState: geo.state !== 'Telangana',
+              isDetectingLocation: false,
+              isOpenModal: false,
+            });
+
+            // Check serviceability for the resolved pincode
+            if (geo.pincode) {
+              locationApi.checkServiceability(geo.pincode).then((serv) => {
+                set({
+                  serviceable: serv.serviceable,
+                  estimatedDays: serv.estimatedDays,
+                  isExpressAvailable: serv.isExpressAvailable,
+                });
+              }).catch(() => {});
+            }
+
+            resolve(geo);
+          } catch (err) {
+            set({ isDetectingLocation: false });
+            reject(err);
+          }
+        },
+        (error) => {
+          set({ isDetectingLocation: false });
+          reject(new Error(error.message || 'Unable to retrieve location'));
+        },
+        { timeout: 10000, enableHighAccuracy: true }
+      );
+    });
+  },
+}));

@@ -57,6 +57,7 @@ export function mapBackendOrder(raw: any): Order {
   const items = Array.isArray(raw.items)
     ? raw.items.map((it: any) => ({
         id: String(it.orderItemId || it.id || ''),
+        orderItemId: it.orderItemId ? Number(it.orderItemId) : (it.id && !isNaN(Number(it.id)) ? Number(it.id) : undefined),
         productId: String(it.productId || ''),
         title: it.productName || it.title || 'Industrial Material',
         productName: it.productName || it.title || 'Industrial Material',

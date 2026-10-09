@@ -1,7 +1,7 @@
 import { apiClient } from '../services/apiClient';
 import type { UploadResponse } from '../types';
 
-export type UploadFolder = 'kyc' | 'rfq' | 'mtc' | 'products';
+export type UploadFolder = 'kyc' | 'rfq' | 'mtc' | 'products' | 'banner';
 
 export const uploadApi = {
   /**
