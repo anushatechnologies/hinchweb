@@ -6,6 +6,18 @@ export interface ApiErrorResponse {
   message: string;
   statusCode?: number;
   errors?: Record<string, string[]>;
+  error?: string;
+  data?: any;
+  currentStore?: {
+    id: number;
+    name: string;
+    slug?: string;
+  };
+  newStore?: {
+    id: number;
+    name: string;
+    slug?: string;
+  };
 }
 
 // In development, route through Vite proxy (/api) to avoid browser CORS errors
@@ -163,13 +175,18 @@ apiClient.interceptors.response.use(
       );
     }
 
+    const respData = error.response?.data as any;
     const normalizedError: ApiErrorResponse = {
       message:
-        (error.response?.data as any)?.message ||
+        respData?.message ||
         error.message ||
         'An unexpected network error occurred. Please try again.',
       statusCode: status,
-      errors: (error.response?.data as any)?.errors,
+      errors: respData?.errors,
+      error: respData?.error,
+      currentStore: respData?.currentStore,
+      newStore: respData?.newStore,
+      data: respData,
     };
 
     return Promise.reject(normalizedError);

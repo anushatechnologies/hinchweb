@@ -10,6 +10,7 @@ import { AuthModal } from './components/common/AuthModal';
 import { ToastContainer } from './components/common/ToastContainer';
 import { VariantSelectModal } from './components/common/VariantSelectModal';
 import { CartSnackbar } from './components/common/CartSnackbar';
+import { StoreMismatchModal } from './components/common/StoreMismatchModal';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 
 import { HomePage } from './pages/HomePage';
@@ -72,6 +73,7 @@ function App() {
         <AuthModal />
         <VariantSelectModal />
         <CartSnackbar />
+        <StoreMismatchModal />
         <ToastContainer />
 
         {/* Main Routed Content */}

@@ -54,6 +54,7 @@ export const CartDrawer: React.FC = () => {
                 <h3 className="font-black text-sm">Procurement Cart</h3>
                 <span className="text-[11px] text-industrial-400">
                   {cart.items.length} materials selected
+                  {cart.storeName ? ` • ${cart.storeName}` : ''}
                 </span>
               </div>
             </div>
@@ -101,7 +102,7 @@ export const CartDrawer: React.FC = () => {
             <>
               <div className="flex-1 overflow-y-auto p-4 space-y-3 divide-y divide-industrial-100">
                 {cart.items.map((item) => {
-                  const itemId = String(item.productId || item.id || '');
+                  const itemId = item.cartItemId ? String(item.cartItemId) : String(item.productId || item.id || '');
                   const title = item.title || item.product?.title || 'Industrial Material';
                   const brand = item.brand || item.product?.brand || '';
                   const img = item.imageUrl || item.product?.imageUrl || (item.product?.images && item.product.images[0]) || '';

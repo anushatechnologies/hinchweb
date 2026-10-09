@@ -1,12 +1,14 @@
 import { apiClient } from '../services/apiClient';
-import type { Cart, CartItem, AddToCartInput, ApplyCouponResult } from '../types';
+import type { Cart, CartItem, AddToCartInput, ApplyCouponResult, CartSyncRequest, SwitchStoreRequest } from '../types';
+
+let lastFetchedCart: Cart | null = null;
 
 /**
  * Normalizes backend CartResponse & CartItemResponse into the frontend Cart contract
  */
 export function mapBackendCart(raw: any): Cart {
   if (!raw) {
-    return {
+    const empty: Cart = {
       id: 'cart_current',
       items: [],
       subtotal: 0,
@@ -19,6 +21,8 @@ export function mapBackendCart(raw: any): Cart {
       grandTotal: 0,
       estimatedDeliveryDays: 2,
     };
+    lastFetchedCart = empty;
+    return empty;
   }
 
   const items: CartItem[] = Array.isArray(raw.items)
@@ -87,7 +91,7 @@ export function mapBackendCart(raw: any): Cart {
     raw.grandTotal ?? raw.total ?? subtotal - couponDiscount + totalGst + deliveryCharge
   );
 
-  return {
+  const result: Cart = {
     id: String(raw.cartId || raw.id || 'cart_current'),
     cartId: raw.cartId ? Number(raw.cartId) : undefined,
     storeId: raw.storeId ? Number(raw.storeId) : undefined,
@@ -109,6 +113,9 @@ export function mapBackendCart(raw: any): Cart {
     estimatedDeliveryDays: Number(raw.estimatedDeliveryDays || 2),
     weightEstimateKg: raw.weightEstimateKg,
   };
+
+  lastFetchedCart = result;
+  return result;
 }
 
 export function getGuestCart(): Cart {
@@ -126,7 +133,7 @@ export function saveGuestCart(cart: Cart): void {
 }
 
 export const cartApi = {
-  // 9.1 Get Current User Cart (GET /api/cart)
+  // 1. Get Current User Cart (GET /api/cart)
   async getCart(): Promise<Cart> {
     const token = localStorage.getItem('hinchmart_auth_token');
     if (!token) {
@@ -150,7 +157,7 @@ export const cartApi = {
     return mapBackendCart(null);
   },
 
-  // 9.2 Add Item to Cart (POST /api/cart/items)
+  // 2. Add or Increment Item in Cart (POST /api/cart/items)
   async addToCart(payload: AddToCartInput, productDetails?: any): Promise<Cart> {
     const token = localStorage.getItem('hinchmart_auth_token');
     if (!token) {
@@ -159,8 +166,8 @@ export const cartApi = {
         (it) => String(it.productId) === String(payload.productId) || String(it.id) === String(payload.productId)
       );
 
-      const item = existingIdx >= 0 ? current.items[existingIdx] : undefined;
-      if (item) {
+      if (existingIdx >= 0) {
+        const item = current.items[existingIdx];
         item.quantity += payload.quantity;
         const itemPrice = Number(item.price || item.unitPrice || 0);
         item.totalPrice = itemPrice * item.quantity;
@@ -219,22 +226,23 @@ export const cartApi = {
       if (err?.statusCode === 401) {
         return getGuestCart();
       }
+      // Re-throw so callers / store can intercept 409 StoreMismatchException
       throw err;
     }
     return this.getCart();
   },
 
-  // 9.3 Set Item Exact Quantity in Cart (PUT /api/cart/items/{id})
-  async updateQuantity(productId: number | string, quantity: number): Promise<Cart> {
+  // 3. Update Item Quantity (PUT /api/cart/items/{cartItemId})
+  async updateQuantity(identifier: number | string, quantity: number): Promise<Cart> {
     if (quantity <= 0) {
-      return this.removeItem(productId);
+      return this.removeItem(identifier);
     }
 
     const token = localStorage.getItem('hinchmart_auth_token');
     if (!token) {
       const current = getGuestCart();
       const existingIdx = current.items.findIndex(
-        (it) => String(it.productId) === String(productId) || String(it.id) === String(productId)
+        (it) => String(it.productId) === String(identifier) || String(it.id) === String(identifier)
       );
 
       if (existingIdx >= 0) {
@@ -256,8 +264,17 @@ export const cartApi = {
       return current;
     }
 
+    // Resolve cartItemId from lastFetchedCart if available
+    const item = (lastFetchedCart?.items || []).find(
+      (it) =>
+        String(it.cartItemId) === String(identifier) ||
+        String(it.productId) === String(identifier) ||
+        String(it.id) === String(identifier)
+    );
+    const resolvedCartItemId = item?.cartItemId ?? (Number(String(identifier).replace(/\D/g, '')) || identifier);
+
     try {
-      const res = await apiClient.put(`/cart/items/${productId}`, { quantity: Number(quantity) });
+      const res = await apiClient.put(`/cart/items/${resolvedCartItemId}`, { quantity: Number(quantity) });
       if (res.data?.success && res.data?.data) {
         return mapBackendCart(res.data.data);
       }
@@ -266,27 +283,24 @@ export const cartApi = {
       }
     } catch {
       try {
-        const patchRes = await apiClient.patch(`/cart/items/${productId}`, { quantity: Number(quantity) });
-        if (patchRes.data?.success && patchRes.data?.data) {
-          return mapBackendCart(patchRes.data.data);
-        }
-        if (patchRes.data?.items) {
-          return mapBackendCart(patchRes.data);
+        const fallbackRes = await apiClient.put(`/cart/items/${identifier}`, { quantity: Number(quantity) });
+        if (fallbackRes.data?.success && fallbackRes.data?.data) {
+          return mapBackendCart(fallbackRes.data.data);
         }
       } catch {
         // Fallback to local guest cart update so user flow never breaks
         const current = getGuestCart();
         const existingIdx = current.items.findIndex(
-          (it) => String(it.productId) === String(productId) || String(it.id) === String(productId)
+          (it) => String(it.productId) === String(identifier) || String(it.id) === String(identifier)
         );
         if (existingIdx >= 0) {
-          const item = current.items[existingIdx];
-          item.quantity = quantity;
-          const itemPrice = Number(item.price || item.unitPrice || 0);
-          item.totalPrice = itemPrice * quantity;
-          item.lineTotal = item.totalPrice;
+          const it = current.items[existingIdx];
+          it.quantity = quantity;
+          const itemPrice = Number(it.price || it.unitPrice || 0);
+          it.totalPrice = itemPrice * quantity;
+          it.lineTotal = it.totalPrice;
 
-          current.subtotal = current.items.reduce((s, it) => s + (it.lineTotal || it.totalPrice || 0), 0);
+          current.subtotal = current.items.reduce((s, x) => s + (x.lineTotal || x.totalPrice || 0), 0);
           current.taxableAmount = current.subtotal;
           current.gstTotal = Math.round(current.subtotal * 0.18);
           current.totalGst = current.gstTotal;
@@ -302,74 +316,76 @@ export const cartApi = {
     return this.getCart();
   },
 
-  // 9.4 Remove Item from Cart (DELETE /api/cart/items/{id})
-  async removeItem(productId: number | string): Promise<Cart> {
-    const token = localStorage.getItem('hinchmart_auth_token');
-    if (!token) {
-      const current = getGuestCart();
-      current.items = current.items.filter(
-        (it) => String(it.productId) !== String(productId) && String(it.id) !== String(productId)
-      );
-      current.subtotal = current.items.reduce((s, it) => s + (it.lineTotal || it.totalPrice || 0), 0);
-      current.taxableAmount = current.subtotal;
-      current.gstTotal = Math.round(current.subtotal * 0.18);
-      current.totalGst = current.gstTotal;
-      current.deliveryTotal = current.deliveryTotal || 0;
-      current.deliveryCharge = current.deliveryTotal;
-      current.grandTotal = current.subtotal + current.gstTotal + current.deliveryTotal;
-      saveGuestCart(current);
-      return current;
-    }
-
+  // 4. Sync Guest Cart to User Cart (POST /api/cart/sync)
+  async syncCart(payload: CartSyncRequest): Promise<Cart> {
     try {
-      const res = await apiClient.delete(`/cart/items/${productId}`);
+      const body: Record<string, any> = {
+        items: payload.items.map((it) => ({
+          productId: Number(String(it.productId).replace(/\D/g, '')) || it.productId,
+          quantity: Number(it.quantity),
+        })),
+      };
+      if (payload.targetStoreId) {
+        body.targetStoreId = Number(payload.targetStoreId);
+      }
+
+      const res = await apiClient.post('/cart/sync', body);
       if (res.data?.success && res.data?.data) {
         return mapBackendCart(res.data.data);
       }
-    } catch {
-      const current = getGuestCart();
-      current.items = current.items.filter(
-        (it) => String(it.productId) !== String(productId) && String(it.id) !== String(productId)
-      );
-      current.subtotal = current.items.reduce((s, it) => s + (it.lineTotal || it.totalPrice || 0), 0);
-      current.taxableAmount = current.subtotal;
-      current.gstTotal = Math.round(current.subtotal * 0.18);
-      current.totalGst = current.gstTotal;
-      current.deliveryTotal = current.deliveryTotal || 0;
-      current.deliveryCharge = current.deliveryTotal;
-      current.grandTotal = current.subtotal + current.gstTotal + current.deliveryTotal;
-      saveGuestCart(current);
-      return current;
+      if (res.data?.items) {
+        return mapBackendCart(res.data);
+      }
+    } catch (err) {
+      console.warn('Backend POST /cart/sync error:', err);
     }
     return this.getCart();
   },
 
-  // 9.5 Clear Entire Cart (DELETE /api/cart)
-  async clearCart(): Promise<Cart> {
-    const token = localStorage.getItem('hinchmart_auth_token');
-    if (!token) {
-      localStorage.removeItem('hinchmart_guest_cart');
-      return mapBackendCart(null);
+  // 5. Switch Store Cart (POST /api/cart/switch-store or POST /api/cart/switch)
+  async switchStore(payload: SwitchStoreRequest): Promise<Cart> {
+    const body: Record<string, any> = {
+      storeId: Number(payload.storeId),
+    };
+    if (payload.storeSlug) body.storeSlug = payload.storeSlug;
+    if (payload.pendingProductId) {
+      body.pendingProductId = Number(String(payload.pendingProductId).replace(/\D/g, '')) || payload.pendingProductId;
+    }
+    if (payload.pendingQuantity) {
+      body.pendingQuantity = Number(payload.pendingQuantity);
     }
 
     try {
-      const res = await apiClient.delete('/cart');
-      if (res.data?.success) {
+      const res = await apiClient.post('/cart/switch-store', body);
+      if (res.data?.success && res.data?.data) {
         return mapBackendCart(res.data.data);
       }
-    } catch (err) {
-      console.warn('Backend DELETE /cart warning:', err);
+      if (res.data?.items) {
+        return mapBackendCart(res.data);
+      }
+    } catch (err: any) {
+      try {
+        const fallbackRes = await apiClient.post('/cart/switch', body);
+        if (fallbackRes.data?.success && fallbackRes.data?.data) {
+          return mapBackendCart(fallbackRes.data.data);
+        }
+        if (fallbackRes.data?.items) {
+          return mapBackendCart(fallbackRes.data);
+        }
+      } catch (fallbackErr) {
+        console.warn('Backend POST /cart/switch-store failed:', fallbackErr);
+        throw err;
+      }
     }
-    return mapBackendCart(null);
+    return this.getCart();
   },
 
-  // 9.6 Apply Coupon (POST /api/cart/coupon with {"code": "BUILD10"})
+  // 6. Apply Coupon Code (POST /api/cart/coupon)
   async applyCoupon(couponCode: string): Promise<ApplyCouponResult> {
     try {
       const cleanCode = couponCode.trim().toUpperCase();
       const res = await apiClient.post('/cart/coupon', {
         code: cleanCode,
-        couponCode: cleanCode,
       });
 
       if (res.data?.success && res.data?.data) {
@@ -397,7 +413,7 @@ export const cartApi = {
     }
   },
 
-  // 9.7 Remove Coupon (DELETE /api/cart/coupon)
+  // 7. Remove Coupon (DELETE /api/cart/coupon)
   async removeCoupon(): Promise<Cart> {
     try {
       const res = await apiClient.delete('/cart/coupon');
@@ -409,4 +425,81 @@ export const cartApi = {
     }
     return this.getCart();
   },
+
+  // 8. Remove Single Item (DELETE /api/cart/items/{cartItemId})
+  async removeItem(identifier: number | string): Promise<Cart> {
+    const token = localStorage.getItem('hinchmart_auth_token');
+    if (!token) {
+      const current = getGuestCart();
+      current.items = current.items.filter(
+        (it) => String(it.productId) !== String(identifier) && String(it.id) !== String(identifier)
+      );
+      current.subtotal = current.items.reduce((s, it) => s + (it.lineTotal || it.totalPrice || 0), 0);
+      current.taxableAmount = current.subtotal;
+      current.gstTotal = Math.round(current.subtotal * 0.18);
+      current.totalGst = current.gstTotal;
+      current.deliveryTotal = current.deliveryTotal || 0;
+      current.deliveryCharge = current.deliveryTotal;
+      current.grandTotal = current.subtotal + current.gstTotal + current.deliveryTotal;
+      saveGuestCart(current);
+      return current;
+    }
+
+    const item = (lastFetchedCart?.items || []).find(
+      (it) =>
+        String(it.cartItemId) === String(identifier) ||
+        String(it.productId) === String(identifier) ||
+        String(it.id) === String(identifier)
+    );
+    const resolvedCartItemId = item?.cartItemId ?? (Number(String(identifier).replace(/\D/g, '')) || identifier);
+
+    try {
+      const res = await apiClient.delete(`/cart/items/${resolvedCartItemId}`);
+      if (res.data?.success && res.data?.data) {
+        return mapBackendCart(res.data.data);
+      }
+    } catch {
+      try {
+        const fallbackRes = await apiClient.delete(`/cart/items/${identifier}`);
+        if (fallbackRes.data?.success && fallbackRes.data?.data) {
+          return mapBackendCart(fallbackRes.data.data);
+        }
+      } catch {
+        const current = getGuestCart();
+        current.items = current.items.filter(
+          (it) => String(it.productId) !== String(identifier) && String(it.id) !== String(identifier)
+        );
+        current.subtotal = current.items.reduce((s, it) => s + (it.lineTotal || it.totalPrice || 0), 0);
+        current.taxableAmount = current.subtotal;
+        current.gstTotal = Math.round(current.subtotal * 0.18);
+        current.totalGst = current.gstTotal;
+        current.deliveryTotal = current.deliveryTotal || 0;
+        current.deliveryCharge = current.deliveryTotal;
+        current.grandTotal = current.subtotal + current.gstTotal + current.deliveryTotal;
+        saveGuestCart(current);
+        return current;
+      }
+    }
+    return this.getCart();
+  },
+
+  // 9. Clear Entire Cart (DELETE /api/cart)
+  async clearCart(): Promise<Cart> {
+    const token = localStorage.getItem('hinchmart_auth_token');
+    if (!token) {
+      localStorage.removeItem('hinchmart_guest_cart');
+      return mapBackendCart(null);
+    }
+
+    try {
+      const res = await apiClient.delete('/cart');
+      if (res.data?.success) {
+        return mapBackendCart(res.data.data);
+      }
+    } catch (err) {
+      console.warn('Backend DELETE /cart warning:', err);
+    }
+    return mapBackendCart(null);
+  },
 };
+

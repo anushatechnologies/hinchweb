@@ -17,6 +17,7 @@ import {
   Sparkles,
   AlertCircle,
   Award,
+  Store,
 } from 'lucide-react';
 
 export const CartPage: React.FC = () => {
@@ -88,6 +89,12 @@ export const CartPage: React.FC = () => {
           <h1 className="text-2xl sm:text-3xl font-black text-industrial-950">
             Project Procurement Cart ({cart.items.length} SKUs)
           </h1>
+          {cart.storeName && (
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-brand-50 text-brand-700 border border-brand-200 mt-2">
+              <Store className="w-3.5 h-3.5" />
+              <span>Fulfillment Hub: {cart.storeName}</span>
+            </div>
+          )}
         </div>
 
         <button
@@ -103,7 +110,7 @@ export const CartPage: React.FC = () => {
         <div className="lg:col-span-8 space-y-4">
           <div className="bg-white rounded-3xl border border-industrial-200 shadow-card divide-y divide-industrial-100 overflow-hidden">
             {cart.items.map((item) => {
-              const itemId = String(item.productId || item.id || '');
+              const itemId = item.cartItemId ? String(item.cartItemId) : String(item.productId || item.id || '');
               const title = item.title || item.product?.title || 'Industrial Material';
               const brand = item.brand || item.product?.brand || '';
               const img = item.imageUrl || item.product?.imageUrl || (item.product?.images && item.product.images[0]) || '';

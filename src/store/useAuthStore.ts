@@ -4,6 +4,7 @@ import { authApi, type SyncUserPayload, type ProfileUpdatePayload } from '../api
 import { addressApi } from '../api/addressApi';
 import { signOutFirebase } from '../services/firebase';
 import { tokenStorage } from '../services/tokenStorage';
+import { useCartStore } from './useCartStore';
 
 const emptyUser: User = {
   id: '',
@@ -221,6 +222,8 @@ export const useAuthStore = create<AuthState>((set, get) => {
           isLoading: false,
           error: null,
         });
+        // Sync guest cart with user cart in backend (POST /api/cart/sync)
+        useCartStore.getState().syncGuestCartWithBackend().catch(() => {});
         // Fetch addresses on successful authentication
         get().fetchAddresses().catch(() => {});
         return syncResponse.user;

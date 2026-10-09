@@ -550,6 +550,37 @@ export interface AddToCartInput {
   quantity: number;
 }
 
+export interface StoreInfo {
+  id: number;
+  name: string;
+  slug?: string;
+}
+
+export interface StoreMismatchConflict {
+  message: string;
+  currentStore: StoreInfo;
+  newStore: StoreInfo;
+  pendingProductId: number;
+  pendingQuantity: number;
+}
+
+export interface SwitchStoreRequest {
+  storeId: number;
+  storeSlug?: string;
+  pendingProductId?: number;
+  pendingQuantity?: number;
+}
+
+export interface CartSyncItem {
+  productId: number;
+  quantity: number;
+}
+
+export interface CartSyncRequest {
+  targetStoreId?: number;
+  items: CartSyncItem[];
+}
+
 export interface ApplyCouponResult {
   success: boolean;
   message: string;
