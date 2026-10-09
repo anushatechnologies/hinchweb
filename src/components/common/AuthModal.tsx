@@ -161,20 +161,12 @@ export const AuthModal: React.FC = () => {
         return;
       }
 
-      let verifier = createRecaptchaVerifier('recaptcha-container', { size: 'invisible' });
+      const verifier = createRecaptchaVerifier('recaptcha-container', { size: 'invisible' });
       if (!verifier) {
         throw new Error('Unable to initialize reCAPTCHA verifier for phone authentication.');
       }
 
-      let confirmation;
-      try {
-        confirmation = await sendFirebasePhoneOtp(formattedPhone, verifier);
-      } catch (phoneErr: any) {
-        console.warn('[Firebase] Invisible reCAPTCHA verification failed, trying visible widget:', phoneErr);
-        const visibleVerifier = createRecaptchaVerifier('recaptcha-container', { size: 'normal' });
-        if (!visibleVerifier) throw phoneErr;
-        confirmation = await sendFirebasePhoneOtp(formattedPhone, visibleVerifier);
-      }
+      const confirmation = await sendFirebasePhoneOtp(formattedPhone, verifier);
 
       setConfirmationResult(confirmation);
       setProfilePhone(formattedPhone);
@@ -223,20 +215,12 @@ export const AuthModal: React.FC = () => {
         return;
       }
 
-      let verifier = createRecaptchaVerifier('recaptcha-container', { size: 'invisible' });
+      const verifier = createRecaptchaVerifier('recaptcha-container', { size: 'invisible' });
       if (!verifier) {
         throw new Error('Unable to initialize reCAPTCHA verifier for phone authentication.');
       }
 
-      let confirmation;
-      try {
-        confirmation = await sendFirebasePhoneOtp(formattedPhone, verifier);
-      } catch (phoneErr: any) {
-        console.warn('[Firebase] Invisible reCAPTCHA verification failed, trying visible widget:', phoneErr);
-        const visibleVerifier = createRecaptchaVerifier('recaptcha-container', { size: 'normal' });
-        if (!visibleVerifier) throw phoneErr;
-        confirmation = await sendFirebasePhoneOtp(formattedPhone, visibleVerifier);
-      }
+      const confirmation = await sendFirebasePhoneOtp(formattedPhone, verifier);
 
       setConfirmationResult(confirmation);
       setProfilePhone(formattedPhone);

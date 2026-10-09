@@ -35,9 +35,6 @@ if (isFirebaseConfigured) {
   try {
     app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
     auth = getAuth(app);
-    if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-      auth.settings.appVerificationDisabledForTesting = true;
-    }
   } catch (err) {
     console.error('[Firebase] Initialization error:', err);
   }
@@ -144,13 +141,6 @@ export async function sendFirebasePhoneOtp(
   let formattedPhone = phoneNumber.trim();
   if (!formattedPhone.startsWith('+')) {
     formattedPhone = `+91${formattedPhone.replace(/\D/g, '')}`;
-  }
-
-  // Pre-render verifier to ensure reCAPTCHA widget is ready before dispatch
-  try {
-    await verifier.render();
-  } catch (renderErr) {
-    console.warn('[Firebase] verifier.render warning:', renderErr);
   }
 
   return signInWithPhoneNumber(auth, formattedPhone, verifier);
