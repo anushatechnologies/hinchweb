@@ -657,6 +657,8 @@ export const AuthModal: React.FC = () => {
                   onChange={(e) => setProfileGstin(e.target.value.toUpperCase())}
                   className="w-full px-3.5 py-2.5 bg-industrial-50 border border-industrial-300 rounded-xl text-xs font-mono text-industrial-900 font-medium uppercase focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white"
                 />
+              </div>
+
               {/* reCAPTCHA Mount Container */}
               <div id="recaptcha-container" className="my-1 empty:hidden flex justify-center" />
 
@@ -830,6 +832,8 @@ export const AuthModal: React.FC = () => {
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                     <span>Existing account detected. Sign in with OTP.</span>
                   </div>
+                )}
+
                 {/* reCAPTCHA Mount Container */}
                 <div id="recaptcha-container" className="my-1 empty:hidden flex justify-center" />
 
