@@ -170,6 +170,7 @@ export const AuthModal: React.FC = () => {
       setConfirmationResult(confirmation);
       setProfilePhone(formattedPhone);
       setOtpStep('verify');
+      setOtpCode('');
       showToast('success', `Verification code sent via SMS to ${formattedPhone}`, 'OTP Sent');
     } catch (err: any) {
       const friendlyMsg = getFriendlyFirebaseErrorMessage(err);
@@ -222,6 +223,7 @@ export const AuthModal: React.FC = () => {
       setConfirmationResult(confirmation);
       setProfilePhone(formattedPhone);
       setOtpStep('verify');
+      setOtpCode('');
       showToast('success', `Verification code sent via SMS to ${formattedPhone}`, 'OTP Sent');
     } catch (err: any) {
       const friendlyMsg = getFriendlyFirebaseErrorMessage(err);
