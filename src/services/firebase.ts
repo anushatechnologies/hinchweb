@@ -83,7 +83,17 @@ export function createRecaptchaVerifier(
   }
 ): RecaptchaVerifier | null {
   if (!auth) return null;
-  return new RecaptchaVerifier(auth, containerId, {
+  let target: string | HTMLElement = containerId;
+  if (typeof containerId === 'string') {
+    let el = document.getElementById(containerId);
+    if (!el) {
+      el = document.createElement('div');
+      el.id = containerId;
+      document.body.appendChild(el);
+    }
+    target = el;
+  }
+  return new RecaptchaVerifier(auth, target, {
     size: options?.size || 'invisible',
     callback: options?.callback,
     'expired-callback': options?.['expired-callback'],
