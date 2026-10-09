@@ -48,7 +48,7 @@ export const OrdersPage: React.FC = () => {
   const [returnDescription, setReturnDescription] = useState('');
   const [isSubmittingReturn, setIsSubmittingReturn] = useState(false);
 
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
   const { openAuthModal } = useAuthModalStore();
   const { openChatWithSeller } = useChatStore();
   const { showToast } = useToastStore();
@@ -106,15 +106,15 @@ export const OrdersPage: React.FC = () => {
           invoiceNumber: order.invoiceNumber || `INV-2026-${orderNumDigits || order.id || '001'}`,
           invoiceDate: order.createdAt?.split('T')[0] || new Date().toISOString().split('T')[0],
           sellerCompanyName: order.seller?.name || 'Authorized Material Distributor',
-          sellerGstin: order.seller?.gstinMasked || '27AAACT2727Q1ZW',
-          buyerCompanyName: order.deliveryAddress?.companyName || 'Enterprise Buyer',
-          buyerName: order.deliveryAddress?.contactName || order.deliveryAddress?.recipientName || 'Site Engineer',
-          buyerGstin: order.deliveryAddress?.gstin || '27AAAAA0000A1Z5',
-          billingAddress: order.billingAddress?.addressLine1 || order.deliveryAddress?.addressLine1,
-          shippingAddress: order.deliveryAddress?.addressLine1,
-          city: order.deliveryAddress?.city || 'Hyderabad',
-          state: order.deliveryAddress?.state || 'Telangana',
-          pincode: order.deliveryAddress?.pincode || '500081',
+          sellerGstin: order.seller?.gstinMasked || (order.seller as any)?.gstin || '',
+          buyerCompanyName: order.deliveryAddress?.companyName || user?.companyName || user?.name || 'Enterprise Buyer',
+          buyerName: order.deliveryAddress?.contactName || order.deliveryAddress?.recipientName || user?.name || '',
+          buyerGstin: order.deliveryAddress?.gstin || user?.gstin || '',
+          billingAddress: order.billingAddress?.addressLine1 || order.deliveryAddress?.addressLine1 || '',
+          shippingAddress: order.deliveryAddress?.addressLine1 || '',
+          city: order.deliveryAddress?.city || '',
+          state: order.deliveryAddress?.state || '',
+          pincode: order.deliveryAddress?.pincode || '',
           items: order.items,
           subtotal: order.subtotal,
           taxableTotal: order.taxableAmount || order.subtotal,
@@ -224,11 +224,11 @@ export const OrdersPage: React.FC = () => {
     id: '1',
     name: 'Primary Manufacturer',
     isVerified: true,
-    rating: 4.9,
-    city: 'Hyderabad',
-    state: 'Telangana',
-    successfulOrders: 100,
-    gstinMasked: '36AAACT2727Q1ZW',
+    rating: 4.8,
+    city: '',
+    state: '',
+    successfulOrders: 0,
+    gstinMasked: '',
   };
 
   return (

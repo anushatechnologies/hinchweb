@@ -1,6 +1,6 @@
-import React from 'react';
 import type { Estimation } from '../../types';
 import { formatINR, formatDate } from '../../utils/formatters';
+import { useAuthStore } from '../../store/useAuthStore';
 import {
   X,
   Printer,
@@ -24,6 +24,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
   onClose,
   onDownloadPdf,
 }) => {
+  const { user } = useAuthStore();
   if (!isOpen || !estimation) return null;
 
   const validUntilFormatted = estimation.validUntil
@@ -120,14 +121,23 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                 Quotation Issued To
               </div>
               <div className="font-black text-sm text-industrial-950">
-                Apex Infrastructure & Civil Projects Pvt Ltd
+                {user.companyName || user.fullName || user.name || 'Registered Enterprise Buyer'}
               </div>
-              <div className="text-industrial-600 mt-0.5">
-                Site Office: Survey 45, HITEC City Transit Hub, Hyderabad
-              </div>
-              <div className="text-industrial-600 mt-0.5">
-                GSTIN: <strong className="font-mono text-industrial-900">36AAACA1234A1Z5</strong>
-              </div>
+              {user.email && (
+                <div className="text-industrial-600 mt-0.5">
+                  Email: {user.email}
+                </div>
+              )}
+              {user.phone && (
+                <div className="text-industrial-600 mt-0.5">
+                  Phone: {user.phone}
+                </div>
+              )}
+              {user.gstin ? (
+                <div className="text-industrial-600 mt-0.5">
+                  GSTIN: <strong className="font-mono text-industrial-900">{user.gstin}</strong>
+                </div>
+              ) : null}
             </div>
 
             <div>

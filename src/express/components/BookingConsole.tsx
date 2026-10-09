@@ -5,6 +5,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { logisticsApi, VEHICLE_FLEET } from '../api/logisticsApi';
+import { useAuthStore } from '../../store/useAuthStore';
 import type { TripBooking } from '../types';
 
 interface BookingConsoleProps {
@@ -67,25 +68,26 @@ export const BookingConsole: React.FC<BookingConsoleProps> = ({ onBookingCreated
   const handleConfirmAndDispatch = async () => {
     setIsSubmitting(true);
     try {
+      const user = useAuthStore.getState().user;
       const booking = await logisticsApi.createBooking({
         pickup: {
           address: pickupAddress,
-          city: 'Hyderabad',
-          contactName: 'Site Coordinator',
-          contactPhone: '9849012345',
+          city: (user as any)?.city || 'Regional Hub',
+          contactName: user.name || 'Site Coordinator',
+          contactPhone: user.phone || '',
         },
         drop: {
           address: dropAddress,
-          city: 'Hyderabad',
+          city: (user as any)?.city || 'Regional Hub',
           contactName: 'Store Incharge',
-          contactPhone: '9876543210',
+          contactPhone: user.phone || '',
         },
         vehicleId: selectedVehicle.id,
         goodsType: selectedTab === '2w' ? 'Documents & Parcels' : 'Commercial & Construction Cargo',
         estimatedWeightKg: selectedTab === '2w' ? 12 : 380,
         helpersCount: selectedTab === '2w' ? 0 : 1,
-        hasGstInvoice: true,
-        gstin: '36AAACH7821P1Z5',
+        hasGstInvoice: Boolean(user.gstin),
+        gstin: user.gstin || '',
         paymentMethod: 'online',
       });
 

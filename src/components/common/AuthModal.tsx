@@ -584,7 +584,7 @@ export const AuthModal: React.FC = () => {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Rajesh Sharma"
+                  placeholder="Enter your full name"
                   value={profileName}
                   onChange={(e) => setProfileName(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-industrial-50 border border-industrial-300 rounded-xl text-xs text-industrial-900 font-medium focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white"
@@ -599,7 +599,7 @@ export const AuthModal: React.FC = () => {
                 <input
                   type="email"
                   required
-                  placeholder="e.g. rajesh@apexinfra.com"
+                  placeholder="name@company.com"
                   value={profileEmail}
                   onChange={(e) => setProfileEmail(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-industrial-50 border border-industrial-300 rounded-xl text-xs text-industrial-900 font-medium focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white"
@@ -614,7 +614,7 @@ export const AuthModal: React.FC = () => {
                 <input
                   type="tel"
                   required
-                  placeholder="e.g. 9876543210"
+                  placeholder="10-digit mobile number"
                   value={profilePhone || identifier}
                   onChange={(e) => {
                     setProfilePhone(e.target.value);
@@ -628,7 +628,7 @@ export const AuthModal: React.FC = () => {
                 <label className="font-bold text-industrial-800">Company Name (Optional)</label>
                 <input
                   type="text"
-                  placeholder="e.g. Apex Infra Projects Pvt Ltd"
+                  placeholder="e.g. Infrastructure & Projects Pvt Ltd"
                   value={profileCompany}
                   onChange={(e) => setProfileCompany(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-industrial-50 border border-industrial-300 rounded-xl text-xs text-industrial-900 font-medium focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white"
@@ -640,7 +640,7 @@ export const AuthModal: React.FC = () => {
                 <input
                   type="text"
                   maxLength={15}
-                  placeholder="e.g. 36AAACA1234A1Z5"
+                  placeholder="15-digit GSTIN"
                   value={profileGstin}
                   onChange={(e) => setProfileGstin(e.target.value.toUpperCase())}
                   className="w-full px-3.5 py-2.5 bg-industrial-50 border border-industrial-300 rounded-xl text-xs font-mono text-industrial-900 font-medium uppercase focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white"
@@ -705,7 +705,7 @@ export const AuthModal: React.FC = () => {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Rajesh Sharma"
+                  placeholder="Enter your full name"
                   value={profileName}
                   onChange={(e) => setProfileName(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-industrial-50 border border-industrial-300 rounded-xl text-xs text-industrial-900 font-medium focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white"
@@ -720,7 +720,7 @@ export const AuthModal: React.FC = () => {
                 <input
                   type="email"
                   required
-                  placeholder="e.g. rajesh@apexinfra.com"
+                  placeholder="name@company.com"
                   value={profileEmail}
                   onChange={(e) => setProfileEmail(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-industrial-50 border border-industrial-300 rounded-xl text-xs text-industrial-900 font-medium focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white"
@@ -752,7 +752,7 @@ export const AuthModal: React.FC = () => {
                 <label className="font-bold text-industrial-800">Company Name (Optional)</label>
                 <input
                   type="text"
-                  placeholder="e.g. Apex Infra Projects Pvt Ltd"
+                  placeholder="e.g. Infrastructure & Projects Pvt Ltd"
                   value={profileCompany}
                   onChange={(e) => setProfileCompany(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-industrial-50 border border-industrial-300 rounded-xl text-xs text-industrial-900 font-medium focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white"
@@ -764,7 +764,7 @@ export const AuthModal: React.FC = () => {
                 <input
                   type="text"
                   maxLength={15}
-                  placeholder="e.g. 36AAACA1234A1Z5"
+                  placeholder="15-digit GSTIN"
                   value={profileGstin}
                   onChange={(e) => setProfileGstin(e.target.value.toUpperCase())}
                   className="w-full px-3.5 py-2.5 bg-industrial-50 border border-industrial-300 rounded-xl text-xs font-mono text-industrial-900 font-medium uppercase focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white"
@@ -802,7 +802,7 @@ export const AuthModal: React.FC = () => {
                     <input
                       type="tel"
                       required
-                      placeholder="e.g. 9876543210"
+                      placeholder="10-digit mobile number"
                       value={identifier}
                       onChange={(e) => {
                         setIdentifier(e.target.value);

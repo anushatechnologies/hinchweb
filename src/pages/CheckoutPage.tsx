@@ -248,7 +248,7 @@ export const CheckoutPage: React.FC = () => {
         paymentMethod: (paymentMethod || 'RAZORPAY').toUpperCase(),
         deliverySlot: 'Morning (08:00 - 12:00)',
         deliveryInstructions: 'Deliver to project site with heavy vehicle trailer access.',
-        poNumber: `PO-APEX-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+        poNumber: `PO-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
         requiresCraneUnloading: true,
       });
 

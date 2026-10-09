@@ -2,6 +2,7 @@ import React from 'react';
 import type { TaxInvoice } from '../../types';
 import { formatINR } from '../../utils/formatters';
 import { invoiceApi } from '../../api/invoiceApi';
+import { useAuthStore } from '../../store/useAuthStore';
 import { X, Printer, Download, ShieldCheck, QrCode } from 'lucide-react';
 
 interface TaxInvoiceModalProps {
@@ -11,6 +12,7 @@ interface TaxInvoiceModalProps {
 }
 
 export const TaxInvoiceModal: React.FC<TaxInvoiceModalProps> = ({ invoice, isOpen, onClose }) => {
+  const { user } = useAuthStore();
   if (!isOpen || !invoice) return null;
 
   const [isDownloading, setIsDownloading] = React.useState(false);
@@ -32,24 +34,24 @@ export const TaxInvoiceModal: React.FC<TaxInvoiceModalProps> = ({ invoice, isOpe
   };
 
   const seller = invoice.seller || {
-    companyName: 'Tata Steel Distribution Hub Pvt Ltd',
-    gstin: '27AAACT2727Q1ZW',
-    pan: 'AAACT2727Q',
-    address: 'Plot 12, Industrial Logistics Zone, Chakan',
-    city: 'Pune',
-    state: 'Maharashtra',
-    pincode: '410501',
+    companyName: 'Authorized Material Distributor',
+    gstin: '',
+    pan: '',
+    address: '',
+    city: '',
+    state: '',
+    pincode: '',
   };
 
   const buyer = invoice.buyer || {
-    companyName: 'Apex Infra Projects Pvt Ltd',
-    contactPerson: 'Rajesh Sharma',
-    gstin: '27AAAAA0000A1Z5',
-    pan: 'AAAAA0000A',
-    address: 'Plot 45, MIDC Industrial Area, Phase 2',
-    city: 'Pune',
-    state: 'Maharashtra',
-    pincode: '411057',
+    companyName: user.companyName || user.fullName || user.name || 'Enterprise Buyer',
+    contactPerson: user.fullName || user.name || '',
+    gstin: user.gstin || '',
+    pan: user.pan || user.panNumber || '',
+    address: '',
+    city: '',
+    state: '',
+    pincode: '',
   };
 
   const hinchmart = invoice.hinchmart || {

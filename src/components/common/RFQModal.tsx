@@ -128,7 +128,7 @@ export const RFQModal: React.FC = () => {
         brandPreference: brandPreference.trim() || 'Any Verified Brand',
         quantity: Number(quantity),
         unit,
-        deliveryLocation: `${deliveryLocation.trim() || 'Site Depot'}, ${deliveryPincode.trim() || '500081'}`,
+        deliveryLocation: [deliveryLocation.trim(), deliveryPincode.trim()].filter(Boolean).join(', ') || 'Project Site',
         requiredByDate,
         targetBudget: targetPrice ? Number(targetPrice) : undefined,
         targetPrice: targetPrice ? Number(targetPrice) : undefined,

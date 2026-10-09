@@ -62,7 +62,7 @@ export function mapBackendCart(raw: any): Cart {
           deliveryCharge: Number(it.deliveryCharge || 0),
           seller: {
             id: String(it.vendorId || it.seller?.id || ''),
-            name: it.vendorName || it.seller?.name || raw.storeName || 'Apex Infra Supplies',
+            name: it.vendorName || it.seller?.name || raw.storeName || 'Wholesale Supplier',
             isVerified: true,
             rating: 4.8,
             city: '',
