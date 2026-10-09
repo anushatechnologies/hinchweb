@@ -256,11 +256,13 @@ export const AccountPage: React.FC = () => {
       <div className="bg-gradient-to-r from-industrial-950 via-slate-900 to-industrial-950 rounded-3xl p-6 sm:p-8 text-white border border-industrial-800 shadow-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div className="flex items-start gap-4">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-white flex items-center justify-center font-black text-2xl shadow-xl shadow-brand-600/30 shrink-0">
-            {(user.companyName || 'H').charAt(0)}
+            {(user.companyName || user.fullName || user.name || 'U').charAt(0).toUpperCase()}
           </div>
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-xl sm:text-2xl font-black text-white">{user.companyName || 'Apex Infra Projects Pvt Ltd'}</h1>
+              <h1 className="text-xl sm:text-2xl font-black text-white">
+                {user.companyName || user.fullName || user.name || 'Enterprise Buyer Account'}
+              </h1>
               {user.isGstVerified && (
                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold">
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
@@ -270,11 +272,11 @@ export const AccountPage: React.FC = () => {
             </div>
 
             <div className="text-xs text-industrial-400 flex flex-wrap items-center gap-3">
-              <span>Primary Representative: <strong className="text-white">{user.fullName || user.name}</strong></span>
+              <span>Primary Representative: <strong className="text-white">{user.fullName || user.name || 'Primary User'}</strong></span>
               <span>•</span>
-              <span className="font-mono">GSTIN: <strong className="text-brand-400">{user.gstin}</strong></span>
+              <span className="font-mono">GSTIN: <strong className="text-brand-400">{user.gstin || 'Not Provided'}</strong></span>
               <span>•</span>
-              <span>Type: {user.businessType}</span>
+              <span>Type: {user.businessType || 'Buyer'}</span>
             </div>
           </div>
         </div>
@@ -410,23 +412,23 @@ export const AccountPage: React.FC = () => {
               <div className="space-y-3">
                 <div className="flex justify-between py-1.5 border-b border-industrial-50">
                   <span className="text-industrial-500">Legal Company Name:</span>
-                  <span className="font-bold text-industrial-900">{user.companyName}</span>
+                  <span className="font-bold text-industrial-900">{user.companyName || user.fullName || user.name || 'Not Specified'}</span>
                 </div>
                 <div className="flex justify-between py-1.5 border-b border-industrial-50">
                   <span className="text-industrial-500">GSTIN Identification:</span>
-                  <span className="font-mono font-bold text-brand-700">{user.gstin}</span>
+                  <span className="font-mono font-bold text-brand-700">{user.gstin || 'Not Provided'}</span>
                 </div>
                 <div className="flex justify-between py-1.5 border-b border-industrial-50">
                   <span className="text-industrial-500">Permanent Account No (PAN):</span>
-                  <span className="font-mono font-bold text-industrial-900">{user.pan}</span>
+                  <span className="font-mono font-bold text-industrial-900">{user.pan || 'Not Provided'}</span>
                 </div>
                 <div className="flex justify-between py-1.5 border-b border-industrial-50">
                   <span className="text-industrial-500">Business Constitution:</span>
-                  <span className="font-semibold text-industrial-900">{user.businessType}</span>
+                  <span className="font-semibold text-industrial-900">{user.businessType || 'Enterprise Buyer'}</span>
                 </div>
                 <div className="flex justify-between py-1.5 border-b border-industrial-50">
                   <span className="text-industrial-500">Industry / Domain:</span>
-                  <span className="font-semibold text-industrial-900">{user.industry}</span>
+                  <span className="font-semibold text-industrial-900">{user.industry || 'General Procurement'}</span>
                 </div>
               </div>
             )}
