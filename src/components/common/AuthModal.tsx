@@ -842,12 +842,28 @@ export const AuthModal: React.FC = () => {
             ) : (
               /* OTP Verification Step */
               <form onSubmit={handleVerifyOtp} className="space-y-4 text-xs">
-                <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-900 text-xs flex items-start gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <div className={`p-3 rounded-xl border text-xs flex items-start gap-2 ${
+                  isFirebaseConfigured
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                    : 'bg-amber-50 border-amber-200 text-amber-950'
+                }`}>
+                  <CheckCircle2 className={`w-4 h-4 shrink-0 mt-0.5 ${
+                    isFirebaseConfigured ? 'text-emerald-600' : 'text-amber-600'
+                  }`} />
                   <div>
-                    <div>OTP dispatched to <strong className="font-mono">{profilePhone || identifier}</strong></div>
-                    <div className="text-[11px] text-emerald-700 mt-0.5">
-                      Enter the 6-digit SMS code to verify with Firebase and authenticate with HinchMart.
+                    <div>
+                      {isFirebaseConfigured ? (
+                        <>OTP SMS sent to <strong className="font-mono">{profilePhone || identifier}</strong></>
+                      ) : (
+                        <>Dev Mode: Test Code Pre-filled for <strong className="font-mono">{profilePhone || identifier}</strong></>
+                      )}
+                    </div>
+                    <div className={`text-[11px] mt-0.5 ${
+                      isFirebaseConfigured ? 'text-emerald-700' : 'text-amber-800'
+                    }`}>
+                      {isFirebaseConfigured
+                        ? 'Enter the 6-digit SMS code received on your phone to verify.'
+                        : 'No real SMS sent because Firebase API keys are not configured in .env. Use test code 123456 and click "Verify OTP & Log In" below.'}
                     </div>
                   </div>
                 </div>
