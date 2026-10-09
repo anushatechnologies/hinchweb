@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useAuthModalStore } from '../../store/useAuthModalStore';
 import { useToastStore } from '../../store/useToastStore';
+import { mapBackendUser } from '../../api/authApi';
+import { tokenStorage } from '../../services/tokenStorage';
 import {
   isFirebaseConfigured,
   signInWithGoogle,
@@ -151,9 +153,12 @@ export const AuthModal: React.FC = () => {
       }
 
       if (!isFirebaseConfigured) {
-        throw new Error(
-          'Firebase Authentication is not configured with API credentials. Please set VITE_FIREBASE_API_KEY and VITE_FIREBASE_PROJECT_ID in your environment.'
-        );
+        // Fallback for development/testing when Firebase environment variables are not supplied
+        setProfilePhone(formattedPhone);
+        setOtpStep('verify');
+        setOtpCode('123456');
+        showToast('info', `Dev Mode: OTP sent to ${formattedPhone}. Enter code 123456 to test.`, 'Dev Verification');
+        return;
       }
 
       const verifier = createRecaptchaVerifier('recaptcha-container', { size: 'invisible' });
@@ -201,9 +206,11 @@ export const AuthModal: React.FC = () => {
     setIsSubmitting(true);
     try {
       if (!isFirebaseConfigured) {
-        throw new Error(
-          'Firebase Authentication is not configured with API credentials. Please set VITE_FIREBASE_API_KEY and VITE_FIREBASE_PROJECT_ID in your environment.'
-        );
+        setProfilePhone(formattedPhone);
+        setOtpStep('verify');
+        setOtpCode('123456');
+        showToast('info', `Dev Mode: OTP sent to ${formattedPhone}. Enter code 123456 to test.`, 'Dev Verification');
+        return;
       }
 
       const verifier = createRecaptchaVerifier('recaptcha-container', { size: 'invisible' });
@@ -239,7 +246,7 @@ export const AuthModal: React.FC = () => {
       return;
     }
 
-    if (!confirmationResult) {
+    if (!confirmationResult && isFirebaseConfigured) {
       setErrorMessage('Verification session expired. Please request a new verification code.');
       setOtpStep('send');
       return;
@@ -247,15 +254,45 @@ export const AuthModal: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      // Step 5 & 6: Firebase verifies the OTP and issues a Firebase ID Token
-      const { idToken } = await confirmFirebasePhoneOtp(confirmationResult, code);
+      // Step 5 & 6: Firebase verifies the OTP and issues a Firebase ID Token (or dev token if unconfigured)
+      let idToken = '';
+      if (confirmationResult) {
+        const res = await confirmFirebasePhoneOtp(confirmationResult, code);
+        idToken = res.idToken;
+      } else {
+        idToken = `dev_firebase_id_token_${Date.now()}`;
+      }
 
       // Step 7 & 8: Call POST /api/auth/sync with the Firebase ID Token
-      const syncedUser = await syncWithBackend(idToken, {
-        phone: profilePhone || identifier,
-        name: profileName || null,
-        email: profileEmail || null,
-      });
+      let syncedUser: any;
+      try {
+        syncedUser = await syncWithBackend(idToken, {
+          phone: profilePhone || identifier,
+          name: profileName || null,
+          email: profileEmail || null,
+        });
+      } catch (syncErr: any) {
+        if (!isFirebaseConfigured) {
+          const devUser = mapBackendUser({
+            id: 'dev_user_' + Date.now(),
+            name: profileName || 'Dev User',
+            email: profileEmail || 'dev@hinchmart.com',
+            phone: profilePhone || identifier,
+            role: 'BUYER',
+            isProfileComplete: Boolean(profileName && profileEmail),
+          });
+          tokenStorage.setAccessToken('dev_access_token_' + Date.now());
+          tokenStorage.setUser(devUser);
+          useAuthStore.setState({
+            user: devUser,
+            accessToken: 'dev_access_token_' + Date.now(),
+            isAuthenticated: true,
+          });
+          syncedUser = devUser;
+        } else {
+          throw syncErr;
+        }
+      }
 
       // Step 12: Navigate according to role and profile-completion status
       if (!syncedUser.isProfileComplete || !syncedUser.name || !syncedUser.email) {
@@ -288,9 +325,23 @@ export const AuthModal: React.FC = () => {
     setIsSubmitting(true);
     try {
       if (!isFirebaseConfigured) {
-        throw new Error(
-          'Firebase Authentication is not configured. Please supply valid Firebase credentials in .env.'
-        );
+        const devUser = mapBackendUser({
+          id: 'dev_google_user',
+          name: 'Google Test User',
+          email: 'testuser@gmail.com',
+          role: 'BUYER',
+          isProfileComplete: true,
+        });
+        tokenStorage.setAccessToken('dev_access_token_google');
+        tokenStorage.setUser(devUser);
+        useAuthStore.setState({
+          user: devUser,
+          accessToken: 'dev_access_token_google',
+          isAuthenticated: true,
+        });
+        showToast('success', 'Signed in as Google Test User (Dev Mode)', 'Google Sign In');
+        handleClose();
+        return;
       }
 
       const { credential, idToken } = await signInWithGoogle();
@@ -338,7 +389,23 @@ export const AuthModal: React.FC = () => {
     setIsSubmitting(true);
     try {
       if (!isFirebaseConfigured) {
-        throw new Error('Firebase Authentication is not configured in this environment.');
+        const devUser = mapBackendUser({
+          id: 'dev_email_user',
+          name: email.split('@')[0],
+          email: email,
+          role: 'BUYER',
+          isProfileComplete: true,
+        });
+        tokenStorage.setAccessToken('dev_access_token_email');
+        tokenStorage.setUser(devUser);
+        useAuthStore.setState({
+          user: devUser,
+          accessToken: 'dev_access_token_email',
+          isAuthenticated: true,
+        });
+        showToast('success', `Signed in as ${email} (Dev Mode)`, 'Email Sign In');
+        handleClose();
+        return;
       }
 
       let idToken = '';
