@@ -85,6 +85,17 @@ export function clearRecaptchaVerifier(): void {
     }
     activeRecaptchaVerifier = null;
   }
+
+  // Completely replace the DOM element so Google reCAPTCHA cannot detect previous widget IDs
+  if (typeof document !== 'undefined') {
+    const el = document.getElementById('recaptcha-container');
+    if (el && el.parentNode) {
+      const freshEl = document.createElement('div');
+      freshEl.id = 'recaptcha-container';
+      freshEl.className = el.className;
+      el.parentNode.replaceChild(freshEl, el);
+    }
+  }
 }
 
 /**
@@ -100,29 +111,46 @@ export function createRecaptchaVerifier(
 ): RecaptchaVerifier | null {
   if (!auth) return null;
 
-  clearRecaptchaVerifier();
+  // If a valid verifier already exists, reuse it!
+  if (activeRecaptchaVerifier) {
+    return activeRecaptchaVerifier;
+  }
 
   let target: string | HTMLElement = containerId;
-  if (typeof containerId === 'string') {
+  if (typeof containerId === 'string' && typeof document !== 'undefined') {
     let el = document.getElementById(containerId);
     if (!el) {
       el = document.createElement('div');
       el.id = containerId;
       document.body.appendChild(el);
-    } else {
-      el.innerHTML = '';
     }
     target = el;
   }
 
-  activeRecaptchaVerifier = new RecaptchaVerifier(auth, target, {
-    size: options?.size || 'invisible',
-    callback: options?.callback,
-    'expired-callback': () => {
-      clearRecaptchaVerifier();
-      options?.['expired-callback']?.();
-    },
-  });
+  try {
+    activeRecaptchaVerifier = new RecaptchaVerifier(auth, target, {
+      size: options?.size || 'invisible',
+      callback: options?.callback,
+      'expired-callback': () => {
+        clearRecaptchaVerifier();
+        options?.['expired-callback']?.();
+      },
+    });
+  } catch (err: any) {
+    console.warn('[Firebase] RecaptchaVerifier initialization warning:', err);
+    // If element was tainted with prior widget, clean and recreate
+    clearRecaptchaVerifier();
+    let freshEl = document.getElementById('recaptcha-container');
+    if (!freshEl) {
+      freshEl = document.createElement('div');
+      freshEl.id = 'recaptcha-container';
+      document.body.appendChild(freshEl);
+    }
+    activeRecaptchaVerifier = new RecaptchaVerifier(auth, freshEl, {
+      size: options?.size || 'invisible',
+      callback: options?.callback,
+    });
+  }
 
   return activeRecaptchaVerifier;
 }

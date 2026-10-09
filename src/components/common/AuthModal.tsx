@@ -10,6 +10,7 @@ import {
   signInWithEmail,
   registerWithEmail,
   createRecaptchaVerifier,
+  clearRecaptchaVerifier,
   sendFirebasePhoneOtp,
   confirmFirebasePhoneOtp,
   getFriendlyFirebaseErrorMessage,
@@ -97,6 +98,7 @@ export const AuthModal: React.FC = () => {
   };
 
   const handleClose = () => {
+    clearRecaptchaVerifier();
     resetModalState();
     closeAuthModal();
   };
@@ -174,6 +176,7 @@ export const AuthModal: React.FC = () => {
       setOtpCode('');
       showToast('success', `Verification code sent via SMS to ${formattedPhone}`, 'OTP Sent');
     } catch (err: any) {
+      clearRecaptchaVerifier();
       const friendlyMsg = getFriendlyFirebaseErrorMessage(err);
       setErrorMessage(friendlyMsg);
       showToast('error', friendlyMsg, 'OTP Error');
@@ -228,6 +231,7 @@ export const AuthModal: React.FC = () => {
       setOtpCode('');
       showToast('success', `Verification code sent via SMS to ${formattedPhone}`, 'OTP Sent');
     } catch (err: any) {
+      clearRecaptchaVerifier();
       const friendlyMsg = getFriendlyFirebaseErrorMessage(err);
       setErrorMessage(friendlyMsg);
       showToast('error', friendlyMsg, 'OTP Error');
