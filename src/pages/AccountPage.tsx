@@ -8,7 +8,15 @@ import { creditApi } from '../api/creditApi';
 import { addressApi } from '../api/addressApi';
 import { authApi } from '../api/authApi';
 import { paymentApi } from '../api/paymentApi';
-import type { KYCDocument, KYCDocumentType, CreditLedger, CreditApplicationResult, PaymentStatusResponse } from '../types';
+import { supportApi } from '../api/supportApi';
+import type {
+  KYCDocument,
+  KYCDocumentType,
+  CreditLedger,
+  CreditApplicationResult,
+  PaymentStatusResponse,
+  SupportTicket,
+} from '../types';
 import { formatINR, formatDate, formatDateTime } from '../utils/formatters';
 import {
   ShieldCheck,
@@ -30,18 +38,23 @@ import {
   CheckCircle2,
   AlertCircle,
   XCircle,
+  LifeBuoy,
+  ExternalLink,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export const AccountPage: React.FC = () => {
   const { user, addresses, addAddress, deleteAddress, setDefaultAddress, updateUser } = useAuthStore();
   const { showToast } = useToastStore();
 
-  const [activeTab, setActiveTab] = useState<'profile' | 'addresses' | 'kyc' | 'credit' | 'payments'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'addresses' | 'kyc' | 'credit' | 'payments' | 'support'>('profile');
   const [isAddingSite, setIsAddingSite] = useState(false);
   const [documents, setDocuments] = useState<KYCDocument[]>([]);
   const [isUploadingDoc, setIsUploadingDoc] = useState(false);
   const [paymentHistory, setPaymentHistory] = useState<PaymentStatusResponse[]>([]);
   const [isLoadingPayments, setIsLoadingPayments] = useState(false);
+  const [userTickets, setUserTickets] = useState<SupportTicket[]>([]);
+  const [isLoadingTickets, setIsLoadingTickets] = useState(false);
 
   // Profile Edit Form
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -151,6 +164,24 @@ export const AccountPage: React.FC = () => {
       fetchPayments();
     }
   }, [activeTab, user?.id]);
+
+  const fetchTickets = async () => {
+    setIsLoadingTickets(true);
+    try {
+      const data = await supportApi.getTickets();
+      setUserTickets(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.warn('Customer tickets notice:', err);
+    } finally {
+      setIsLoadingTickets(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'support') {
+      fetchTickets();
+    }
+  }, [activeTab]);
 
   const handleApplyCredit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -340,6 +371,7 @@ export const AccountPage: React.FC = () => {
           { id: 'kyc', label: `KYC Compliance Documents (${documents.length})` },
           { id: 'credit', label: 'B2B Trade Credit & Ledger' },
           { id: 'payments', label: `Online Payments & Receipts (${paymentHistory.length})` },
+          { id: 'support', label: `Support Tickets & Desk (${userTickets.length})` },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -1306,6 +1338,138 @@ export const AccountPage: React.FC = () => {
                     Once you settle orders via Razorpay, UPI, or Debit/Credit card during checkout or from your Orders page, transaction receipts and gateway references will appear here automatically.
                   </p>
                 </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Support Tickets Tab */}
+      {activeTab === 'support' && (
+        <div className="space-y-6 text-xs">
+          <div className="bg-white p-6 sm:p-8 rounded-3xl border border-industrial-200 shadow-card space-y-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-industrial-100">
+              <div>
+                <h3 className="text-base sm:text-lg font-black text-industrial-950 flex items-center gap-2">
+                  <LifeBuoy className="w-5 h-5 text-brand-600" />
+                  <span>Customer Support & Inquiries</span>
+                </h3>
+                <p className="text-xs text-industrial-500 mt-1">
+                  Active tickets, delivery escalations, and resolution thread for <strong className="text-industrial-900">{user.companyName || user.fullName || user.name}</strong>.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={fetchTickets}
+                  disabled={isLoadingTickets}
+                  className="px-3.5 py-2 bg-industrial-100 hover:bg-industrial-200 text-industrial-800 rounded-xl font-bold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isLoadingTickets ? 'animate-spin' : ''}`} />
+                  <span>Sync</span>
+                </button>
+
+                <Link
+                  to="/support"
+                  className="px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold flex items-center gap-1.5 transition-all shadow-md shadow-brand-600/20 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Open Help Desk</span>
+                </Link>
+              </div>
+            </div>
+
+            {/* Tickets Table / List */}
+            {isLoadingTickets ? (
+              <div className="py-16 text-center text-industrial-500 flex flex-col items-center gap-2">
+                <Loader2 className="w-6 h-6 animate-spin text-brand-600" />
+                <span>Loading tickets from help desk...</span>
+              </div>
+            ) : userTickets.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-industrial-100 text-[11px] uppercase tracking-wider text-industrial-500">
+                      <th className="py-3 font-bold">Ticket #</th>
+                      <th className="py-3 font-bold">Subject</th>
+                      <th className="py-3 font-bold">Category</th>
+                      <th className="py-3 font-bold">Priority</th>
+                      <th className="py-3 font-bold">Status</th>
+                      <th className="py-3 font-bold">Updated</th>
+                      <th className="py-3 font-bold text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-industrial-100">
+                    {userTickets.map((t) => (
+                      <tr key={t.ticketId} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="py-3.5 font-mono font-bold text-industrial-900 text-xs">
+                          #{t.ticketNumber}
+                        </td>
+                        <td className="py-3.5 max-w-xs">
+                          <div className="font-bold text-industrial-950 truncate">{t.subject}</div>
+                          {t.orderId && (
+                            <div className="text-[10px] text-brand-600 font-semibold">
+                              Linked Order #{t.orderId}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-3.5 uppercase font-semibold text-industrial-600 text-[11px]">
+                          {t.category}
+                        </td>
+                        <td className="py-3.5">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                            t.priority === 'URGENT' ? 'bg-rose-100 text-rose-800' :
+                            t.priority === 'HIGH' ? 'bg-amber-100 text-amber-800' :
+                            t.priority === 'MEDIUM' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-700'
+                          }`}>
+                            {t.priority}
+                          </span>
+                        </td>
+                        <td className="py-3.5">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                            t.status === 'RESOLVED' ? 'bg-emerald-100 text-emerald-800' :
+                            t.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-800' :
+                            t.status === 'CLOSED' ? 'bg-slate-100 text-slate-700' : 'bg-amber-100 text-amber-800'
+                          }`}>
+                            {t.status}
+                          </span>
+                        </td>
+                        <td className="py-3.5 text-industrial-500 text-[11px]">
+                          {formatDateTime(t.updatedAt || t.createdAt)}
+                        </td>
+                        <td className="py-3.5 text-right">
+                          <Link
+                            to={`/support?ticketId=${t.ticketId}`}
+                            className="inline-flex items-center gap-1 px-3 py-1 bg-industrial-900 hover:bg-industrial-800 text-white rounded-lg font-bold text-[11px] transition-colors"
+                          >
+                            <span>Open Thread</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="py-12 px-4 text-center space-y-3 bg-industrial-50/60 rounded-2xl border border-dashed border-industrial-200">
+                <div className="w-12 h-12 rounded-2xl bg-white border border-industrial-200 flex items-center justify-center mx-auto text-industrial-400 shadow-2xs">
+                  <LifeBuoy className="w-6 h-6 text-brand-600" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm text-industrial-900">No Support Tickets Raised Yet</h4>
+                  <p className="text-xs text-industrial-500 max-w-md mx-auto mt-1 leading-relaxed">
+                    Have questions about an ongoing consignment, billing, or technical specifications? You can raise a ticket at any time through our Help Desk.
+                  </p>
+                </div>
+                <Link
+                  to="/support"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-brand-600 text-white rounded-xl font-bold text-xs shadow-md shadow-brand-600/20"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Raise First Support Ticket</span>
+                </Link>
               </div>
             )}
           </div>

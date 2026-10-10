@@ -23,3 +23,4 @@ export * from './subcategoryApi';
 export * from './uploadApi';
 export * from './wishlistApi';
 export * from './estimationApi';
+export * from './supportApi';

@@ -1361,3 +1361,64 @@ export interface EstimationHistoryResponse {
   };
 }
 
+// -------------------------------------------------------------
+// Support Tickets API Types (POST /api/help/tickets)
+// -------------------------------------------------------------
+
+export type TicketCategory =
+  | 'DELIVERY'
+  | 'PAYMENT'
+  | 'QUALITY'
+  | 'RFQ'
+  | 'TECHNICAL'
+  | 'GENERAL';
+
+export type TicketPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+
+export type TicketStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
+
+export interface TicketMessage {
+  messageId: number;
+  ticketId: number;
+  senderId?: number;
+  senderRole?: 'USER' | 'AGENT' | 'ADMIN' | string;
+  senderName?: string;
+  content: string;
+  attachmentUrl?: string;
+  timestamp: string;
+}
+
+export interface SupportTicket {
+  ticketId: number;
+  ticketNumber: string;
+  userId?: number;
+  subject: string;
+  category: TicketCategory;
+  priority: TicketPriority;
+  status: TicketStatus;
+  orderId?: number;
+  messages: TicketMessage[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateTicketRequest {
+  subject: string;
+  message: string;
+  category?: TicketCategory;
+  priority?: TicketPriority;
+  orderId?: number;
+}
+
+export interface TicketMessageRequest {
+  content: string;
+  attachmentUrl?: string;
+}
+
+export interface TicketFilterParams {
+  status?: TicketStatus | string;
+  page?: number;
+  limit?: number;
+  orderId?: number;
+}
+

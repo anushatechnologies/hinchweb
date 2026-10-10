@@ -23,6 +23,7 @@ import {
   Phone,
   ShieldAlert,
   CreditCard,
+  LifeBuoy,
 } from 'lucide-react';
 import { paymentApi } from '../api/paymentApi';
 import { ReviewModal } from '../components/common/ReviewModal';
@@ -500,6 +501,14 @@ export const OrdersPage: React.FC = () => {
                         <span>Cancel</span>
                       </button>
                     )}
+                    <Link
+                      to={`/support?orderId=${selectedOrder.id}`}
+                      className="px-3.5 py-2 border border-brand-200 text-brand-700 hover:bg-brand-50 rounded-xl text-xs font-bold shadow-sm flex items-center gap-1.5 transition-all cursor-pointer"
+                      title="Raise Support Ticket for this Order"
+                    >
+                      <LifeBuoy className="w-3.5 h-3.5 text-brand-600" />
+                      <span>Help / Ticket</span>
+                    </Link>
                     <button
                       type="button"
                       onClick={() =>

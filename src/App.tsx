@@ -26,6 +26,7 @@ import { OrdersPage } from './pages/OrdersPage';
 import { InvoicesPage } from './pages/InvoicesPage';
 import { AccountPage } from './pages/AccountPage';
 import { WishlistPage } from './pages/WishlistPage';
+import { SupportPage } from './pages/SupportPage';
 import { EstimationsPage } from './pages/EstimationsPage';
 import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
 import { TermsPage } from './pages/TermsPage';
@@ -152,6 +153,22 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={['CUSTOMER', 'BUYER', 'SELLER', 'ADMIN']}>
                   <WishlistPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/support"
+              element={
+                <ProtectedRoute allowedRoles={['CUSTOMER', 'BUYER', 'SELLER', 'ADMIN']}>
+                  <SupportPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/help"
+              element={
+                <ProtectedRoute allowedRoles={['CUSTOMER', 'BUYER', 'SELLER', 'ADMIN']}>
+                  <SupportPage />
                 </ProtectedRoute>
               }
             />

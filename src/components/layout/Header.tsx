@@ -30,6 +30,7 @@ import {
   Briefcase,
   ClipboardList,
   LogOut,
+  LifeBuoy,
 } from 'lucide-react';
 
 export const Header: React.FC = () => {
@@ -585,6 +586,18 @@ export const Header: React.FC = () => {
                     >
                       <MapPin className="w-4 h-4 text-industrial-500" />
                       <span>My Address</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setIsUserMenuOpen(false);
+                        if (!isUserLoggedIn) openAuthModal();
+                        else navigate('/support');
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2 hover:bg-industrial-50 hover:text-[#d9232d] transition-colors text-left cursor-pointer font-bold text-brand-700"
+                    >
+                      <LifeBuoy className="w-4 h-4 text-brand-600" />
+                      <span>Help & Support Tickets</span>
                     </button>
 
                     {isUserLoggedIn && (
