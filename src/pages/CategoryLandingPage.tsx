@@ -275,10 +275,9 @@ export const CategoryLandingPage: React.FC = () => {
         </div>
       </section>
 
-      {/* 3. SUBCATEGORY SHOWCASE SECTIONS (Brands + Top Products Carousels) */}
+      {/* 3. SUBCATEGORY SHOWCASE SECTIONS (Top Products Carousels) */}
       {showcases.map((showcase, sIdx) => {
-        const { subcategory, products: subProds, brands } = showcase;
-        const brandRowId = `brand_row_${sIdx}`;
+        const { subcategory, products: subProds } = showcase;
         const prodRowId = `prod_row_${sIdx}`;
 
         return (
@@ -309,57 +308,9 @@ export const CategoryLandingPage: React.FC = () => {
                 </Link>
               </div>
 
-              {/* Brand Carousel Row */}
-              {brands.length > 0 && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs font-bold text-industrial-700">
-                    <span className="uppercase tracking-wider text-[11px] text-industrial-500">
-                      Popular Brands in {subcategory.name}
-                    </span>
-                    {brands.length > 5 && (
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => scrollRow(brandRowId, 'left')}
-                          className="w-7 h-7 rounded-lg border border-industrial-300 hover:bg-industrial-100 flex items-center justify-center text-industrial-700 cursor-pointer"
-                          aria-label="Scroll brands left"
-                        >
-                          <ChevronLeft className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => scrollRow(brandRowId, 'right')}
-                          className="w-7 h-7 rounded-lg border border-industrial-300 hover:bg-industrial-100 flex items-center justify-center text-industrial-700 cursor-pointer"
-                          aria-label="Scroll brands right"
-                        >
-                          <ChevronRight className="w-4 h-4" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  <div
-                    id={brandRowId}
-                    className="flex items-center gap-3 overflow-x-auto no-scrollbar py-1"
-                  >
-                    {brands.map((brand, bIdx) => (
-                      <Link
-                        key={bIdx}
-                        to={`/catalog?category=${encodeURIComponent(category.name)}&subcategory=${encodeURIComponent(subcategory.name)}&brand=${encodeURIComponent(brand.name)}`}
-                        className="flex flex-col items-center gap-1.5 p-2.5 rounded-2xl border border-industrial-200 hover:border-brand-500 hover:bg-brand-50/30 transition-all shrink-0 min-w-[100px] text-center group cursor-pointer"
-                      >
-                        <div className="w-12 h-12 rounded-full bg-industrial-100 border border-industrial-200 flex items-center justify-center text-xs font-black text-industrial-800 uppercase group-hover:scale-105 group-hover:bg-brand-100 group-hover:text-brand-700 transition-all shadow-xs">
-                          {brand.name.slice(0, 3)}
-                        </div>
-                        <span className="text-xs font-bold text-industrial-900 group-hover:text-brand-700 line-clamp-1 max-w-[90px]">
-                          {brand.name}
-                        </span>
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               {/* Product Carousel Row / Empty state */}
               {subProds.length > 0 ? (
+
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-xs font-bold text-industrial-700">
                     <span className="uppercase tracking-wider text-[11px] text-industrial-500">
