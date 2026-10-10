@@ -59,6 +59,7 @@ export const SubcategoryLandingPage: React.FC = () => {
   const [selectedPriceRanges, setSelectedPriceRanges] = useState<string[]>([]);
   const [fastDeliveryOnly, setFastDeliveryOnly] = useState(false);
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+  const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
 
   useEffect(() => {
     setIsLoading(true);
@@ -717,7 +718,7 @@ export const SubcategoryLandingPage: React.FC = () => {
         {/* 6. MAIN PRODUCTS LISTING WITH LEFT FILTER SIDEBAR (Screenshot 4) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start pt-2">
           {/* LEFT FILTER SIDEBAR (Screenshot 4) */}
-          <aside className="lg:col-span-3 bg-white rounded-2xl border border-gray-200 p-5 shadow-2xs space-y-6 sticky top-24">
+          <aside className="hidden lg:block lg:col-span-3 bg-white rounded-2xl border border-gray-200 p-5 shadow-2xs space-y-6 sticky top-24">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
               <div className="flex items-center gap-2 font-black text-sm text-gray-900 font-outfit">
                 <SlidersHorizontal className="w-4 h-4 text-[#d9232d]" />
@@ -874,9 +875,19 @@ export const SubcategoryLandingPage: React.FC = () => {
           <main className="lg:col-span-9 space-y-6">
             {/* Active Filters Bar & Count */}
             <div className="bg-white rounded-2xl px-5 py-3.5 border border-gray-200 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
-              <div className="text-xs text-gray-500 font-medium">
-                Showing <strong className="text-gray-900 font-extrabold">{filteredProducts.length}</strong> items in{' '}
-                <strong className="text-[#d9232d]">{displayName}</strong>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsMobileFilterOpen(true)}
+                  className="lg:hidden px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5 text-[#d9232d]" />
+                  <span>Filters</span>
+                </button>
+                <div className="text-xs text-gray-500 font-medium">
+                  Showing <strong className="text-gray-900 font-extrabold">{filteredProducts.length}</strong> items in{' '}
+                  <strong className="text-[#d9232d]">{displayName}</strong>
+                </div>
               </div>
 
               {selectedBrands.length > 0 && (
@@ -1090,6 +1101,177 @@ export const SubcategoryLandingPage: React.FC = () => {
               <p className="text-xs text-gray-300 max-w-sm text-center">
                 Quality testing, chemical composition inspection, and batch verification video stream for {displayName}.
               </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Filters Slide-Over Drawer */}
+      {isMobileFilterOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end lg:hidden animate-in fade-in duration-200">
+          <div
+            className="fixed inset-0 bg-gray-950/60 backdrop-blur-xs"
+            onClick={() => setIsMobileFilterOpen(false)}
+          />
+          <div className="relative w-full max-w-xs sm:max-w-sm bg-white h-full shadow-2xl flex flex-col z-10 animate-in slide-in-from-right duration-300">
+            {/* Header */}
+            <div className="p-4 bg-gray-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2 font-bold text-sm">
+                <SlidersHorizontal className="w-4 h-4 text-[#d9232d]" />
+                <span>Filter {displayName}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                {(selectedBrands.length > 0 || selectedPriceRanges.length > 0 || fastDeliveryOnly) && (
+                  <button
+                    onClick={() => {
+                      setSelectedBrands([]);
+                      setSelectedPriceRanges([]);
+                      setFastDeliveryOnly(false);
+                      searchParams.delete('brand');
+                      setSearchParams(searchParams, { replace: true });
+                    }}
+                    className="text-xs text-red-300 hover:text-white font-semibold cursor-pointer underline"
+                  >
+                    Reset
+                  </button>
+                )}
+                <button
+                  onClick={() => setIsMobileFilterOpen(false)}
+                  className="p-1 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white cursor-pointer"
+                  aria-label="Close filters"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Scrollable Filters Content */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-5 text-xs">
+              {/* 24-Hour Express Dispatch */}
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200">
+                <label className="flex items-center justify-between cursor-pointer">
+                  <div className="flex items-center gap-1.5 font-bold text-amber-950">
+                    <Truck className="w-4 h-4 text-amber-600" />
+                    <span>24-Hour Express Dispatch Only</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={fastDeliveryOnly}
+                    onChange={(e) => setFastDeliveryOnly(e.target.checked)}
+                    className="rounded-md border-gray-300 text-[#d9232d] w-4 h-4"
+                  />
+                </label>
+              </div>
+
+              {/* Price Ranges */}
+              <div className="space-y-2 border-b border-gray-100 pb-4">
+                <h4 className="font-bold text-xs uppercase tracking-wider text-gray-700">Price Range</h4>
+                <div className="space-y-2">
+                  {priceRanges.map((range) => {
+                    const count = products.filter(
+                      (p) => p.price >= range.min && p.price <= range.max
+                    ).length;
+                    const isChecked = selectedPriceRanges.includes(range.label);
+
+                    return (
+                      <label
+                        key={range.label}
+                        className="flex items-center justify-between text-gray-700 hover:text-gray-900 cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {
+                              if (isChecked) {
+                                setSelectedPriceRanges(
+                                  selectedPriceRanges.filter((r) => r !== range.label)
+                                );
+                              } else {
+                                setSelectedPriceRanges([...selectedPriceRanges, range.label]);
+                              }
+                            }}
+                            className="rounded-md border-gray-300 text-[#d9232d] w-4 h-4"
+                          />
+                          <span className="font-medium">{range.label}</span>
+                        </div>
+                        <span className="text-gray-400 text-[11px]">({count})</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Brands */}
+              <div className="space-y-3">
+                <h4 className="font-bold text-xs uppercase tracking-wider text-gray-700">Brand</h4>
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    value={brandSearchQuery}
+                    onChange={(e) => setBrandSearchQuery(e.target.value)}
+                    placeholder="Search Brand"
+                    className="w-full pl-8 pr-3 py-1.5 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:border-[#d9232d] outline-hidden"
+                  />
+                </div>
+                <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
+                  {brands
+                    .filter((b) =>
+                      b.name.toLowerCase().includes(brandSearchQuery.toLowerCase())
+                    )
+                    .map((b) => {
+                      const isChecked = selectedBrands.includes(b.name);
+                      const count = products.filter(
+                        (p) => (p.brand || '').toLowerCase() === b.name.toLowerCase()
+                      ).length;
+
+                      return (
+                        <label
+                          key={b.id || b.name}
+                          className="flex items-center justify-between text-gray-700 hover:text-gray-900 cursor-pointer py-0.5"
+                        >
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => handleToggleBrand(b.name)}
+                              className="rounded-md border-gray-300 text-[#d9232d] w-4 h-4"
+                            />
+                            <span className="font-medium">{b.name}</span>
+                          </div>
+                          <span className="text-gray-400 text-[11px]">
+                            ({count > 0 ? count : b.productCount || 1})
+                          </span>
+                        </label>
+                      );
+                    })}
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Actions */}
+            <div className="p-4 bg-gray-50 border-t border-gray-200 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedBrands([]);
+                  setSelectedPriceRanges([]);
+                  setFastDeliveryOnly(false);
+                  searchParams.delete('brand');
+                  setSearchParams(searchParams, { replace: true });
+                }}
+                className="flex-1 py-2.5 bg-white border border-gray-300 text-gray-700 font-bold rounded-xl text-xs"
+              >
+                Clear All
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsMobileFilterOpen(false)}
+                className="flex-1 py-2.5 bg-[#d9232d] text-white font-bold rounded-xl text-xs shadow-md"
+              >
+                Apply ({filteredProducts.length})
+              </button>
             </div>
           </div>
         </div>

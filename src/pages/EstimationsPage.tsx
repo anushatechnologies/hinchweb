@@ -377,9 +377,9 @@ export const EstimationsPage: React.FC = () => {
             </div>
 
             {/* Upload & Analyze Action Button */}
-            <div className="flex items-center justify-between pt-2">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
               <div className="flex items-center gap-2 text-xs text-industrial-500">
-                <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
                 <span>Protected by 256-bit encryption • Direct cloud upload to <code>POST /api/estimations/upload</code></span>
               </div>
 

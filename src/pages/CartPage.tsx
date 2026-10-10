@@ -202,7 +202,7 @@ export const CartPage: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="text-right">
+                    <div className="text-left sm:text-right">
                       <div className="text-lg font-black text-industrial-950 font-mono">
                         {formatINR(item.totalPrice)}
                       </div>

@@ -136,7 +136,7 @@ export const PincodeModal: React.FC = () => {
             <label className="block text-xs font-semibold uppercase tracking-wider text-industrial-500 mb-3">
               Major Industrial & Construction Corridors
             </label>
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {POPULAR_LOCATIONS.map((loc) => {
                 const isSelected = pincode === loc.pin;
                 return (

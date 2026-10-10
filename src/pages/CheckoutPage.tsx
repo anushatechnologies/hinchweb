@@ -596,7 +596,7 @@ export const CheckoutPage: React.FC = () => {
         </div>
 
         {/* Right: Order Review & Confirmation Box (4 cols) */}
-        <div className="lg:col-span-4 space-y-4 sticky top-24">
+        <div className="lg:col-span-4 space-y-4 lg:sticky lg:top-24">
           <div className="bg-white p-6 rounded-3xl border border-industrial-200 shadow-card space-y-4">
             <h3 className="font-bold text-sm text-industrial-950 pb-2 border-b border-industrial-200">
               Procurement Order Summary

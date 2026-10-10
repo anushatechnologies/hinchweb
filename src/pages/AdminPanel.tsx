@@ -640,7 +640,7 @@ export const AdminPanel: React.FC = () => {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
+      <div className="max-w-[1720px] w-full mx-auto px-4 sm:px-8 lg:px-12 py-8">
 
         {/* ──── PRODUCTS ──────────────────────────────────────────── */}
         {activeTab === 'products' && (
@@ -675,7 +675,7 @@ export const AdminPanel: React.FC = () => {
                 <RefreshCw size={24} className="animate-spin" />
               </div>
             ) : (
-              <div className="bg-white rounded-2xl border border-industrial-100 overflow-hidden shadow-sm">
+              <div className="bg-white rounded-2xl border border-industrial-100 overflow-x-auto shadow-sm">
                 <table className="w-full text-xs">
                   <thead className="bg-industrial-50 border-b border-industrial-100">
                     <tr>
@@ -1009,7 +1009,7 @@ export const AdminPanel: React.FC = () => {
             {loadingCats ? (
               <div className="flex justify-center py-16 text-industrial-400"><RefreshCw size={24} className="animate-spin" /></div>
             ) : (
-              <div className="bg-white rounded-2xl border border-industrial-100 overflow-hidden shadow-sm">
+              <div className="bg-white rounded-2xl border border-industrial-100 overflow-x-auto shadow-sm">
                 <table className="w-full text-xs">
                   <thead className="bg-industrial-50 border-b border-industrial-100">
                     <tr>

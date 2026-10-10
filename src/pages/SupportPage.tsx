@@ -396,7 +396,7 @@ export const SupportPage: React.FC = () => {
         {/* Right Column: Active Ticket Thread (7 cols) */}
         <div className="lg:col-span-7">
           {selectedTicket ? (
-            <div className="bg-white rounded-3xl border border-industrial-200 shadow-card flex flex-col h-[750px] overflow-hidden">
+            <div className="bg-white rounded-3xl border border-industrial-200 shadow-card flex flex-col min-h-[500px] h-[600px] sm:h-[750px] overflow-hidden">
               {/* Ticket Details Top Header */}
               <div className="p-5 border-b border-industrial-100 bg-industrial-50/50 space-y-2 shrink-0">
                 <div className="flex flex-wrap items-center justify-between gap-2">

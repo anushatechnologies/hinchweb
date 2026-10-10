@@ -364,7 +364,7 @@ export const AccountPage: React.FC = () => {
       </div>
 
       {/* 2. Navigation Tabs */}
-      <div className="flex flex-wrap sm:flex-nowrap gap-2 sm:gap-3 border-b border-industrial-200 pb-2 text-xs font-bold overflow-x-auto">
+      <div className="flex items-center gap-2 sm:gap-3 border-b border-industrial-200 pb-2 text-xs font-bold overflow-x-auto no-scrollbar">
         {[
           { id: 'profile', label: 'Company Profile & Rep' },
           { id: 'addresses', label: `Delivery Sites & Address Book (${addresses.length})` },

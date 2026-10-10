@@ -168,32 +168,34 @@ export const Header: React.FC = () => {
   return (
     <header className="sticky top-0 z-40 bg-white border-b border-industrial-200 shadow-subtle">
       {/* 0. Top Enterprise Business Bar */}
-      <div className="bg-gradient-to-r from-red-950 via-industrial-950 to-red-950 text-white text-xs py-1.5 px-4 sm:px-8 lg:px-12 flex items-center justify-between border-b border-red-900/40">
-        <div className="flex items-center gap-2 overflow-hidden text-[11px] sm:text-xs">
-          <span className="font-extrabold text-brand-400 tracking-wide flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-brand-400 animate-pulse" />
-            <span className="text-white font-black text-sm tracking-tight">hinchmart</span>
-            <span className="text-red-400 font-black italic">Business</span>
-          </span>
-          <span className="text-industrial-600 hidden sm:inline">|</span>
-          <span className="text-industrial-300 hidden md:inline truncate">
-            AI-Powered Procurement for Your Business. Move Faster. Source Smarter. Scale Seamlessly.
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <Link
-            to="/estimations"
-            className="px-3 py-1 bg-red-600 hover:bg-red-500 text-white text-[11px] font-extrabold rounded-full transition-all shrink-0 shadow-sm flex items-center gap-1.5"
-          >
-            <Sparkles className="w-3 h-3 text-amber-300 animate-pulse" />
-            <span>AI Estimate & Quotation</span>
-          </Link>
-          <Link
-            to="/account"
-            className="hidden sm:inline-block px-3 py-1 bg-white text-red-700 hover:bg-brand-50 text-[11px] font-extrabold rounded-full transition-all shrink-0 shadow-sm"
-          >
-            Explore Business
-          </Link>
+      <div className="bg-gradient-to-r from-red-950 via-industrial-950 to-red-950 text-white text-xs py-1.5 border-b border-red-900/40">
+        <div className="max-w-[1720px] w-full mx-auto px-4 sm:px-8 lg:px-12 flex items-center justify-between">
+          <div className="flex items-center gap-2 overflow-hidden text-[11px] sm:text-xs">
+            <span className="font-extrabold text-brand-400 tracking-wide flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-brand-400 animate-pulse" />
+              <span className="text-white font-black text-sm tracking-tight">hinchmart</span>
+              <span className="text-red-400 font-black italic">Business</span>
+            </span>
+            <span className="text-industrial-600 hidden sm:inline">|</span>
+            <span className="text-industrial-300 hidden md:inline truncate">
+              AI-Powered Procurement for Your Business. Move Faster. Source Smarter. Scale Seamlessly.
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link
+              to="/estimations"
+              className="px-3 py-1 bg-red-600 hover:bg-red-500 text-white text-[11px] font-extrabold rounded-full transition-all shrink-0 shadow-sm flex items-center gap-1.5"
+            >
+              <Sparkles className="w-3 h-3 text-amber-300 animate-pulse" />
+              <span>AI Estimate & Quotation</span>
+            </Link>
+            <Link
+              to="/account"
+              className="hidden sm:inline-block px-3 py-1 bg-white text-red-700 hover:bg-brand-50 text-[11px] font-extrabold rounded-full transition-all shrink-0 shadow-sm"
+            >
+              Explore Business
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -633,6 +635,29 @@ export const Header: React.FC = () => {
             )}
           </button>
         </div>
+      </div>
+
+      {/* Mobile Search Bar (< 768px) */}
+      <div className="md:hidden px-4 pb-2.5 pt-0.5 max-w-[1720px] mx-auto w-full">
+        <form
+          onSubmit={handleSearch}
+          className="flex items-center bg-industrial-50 border border-industrial-300 focus-within:border-red-600 focus-within:bg-white rounded-xl overflow-hidden shadow-2xs transition-all"
+        >
+          <input
+            type="text"
+            placeholder="Search Products, Categories, Brands..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="flex-1 px-3.5 py-2 text-xs text-industrial-900 placeholder:text-industrial-400 bg-transparent focus:outline-none font-medium"
+          />
+          <button
+            type="submit"
+            aria-label="Search catalog"
+            className="px-3.5 py-2 bg-red-600 hover:bg-red-700 text-white flex items-center justify-center transition-colors cursor-pointer"
+          >
+            <Search className="w-3.5 h-3.5" />
+          </button>
+        </form>
       </div>
     </header>
   );

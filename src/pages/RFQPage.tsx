@@ -300,7 +300,7 @@ export const RFQPage: React.FC = () => {
           </div>
 
           {/* Quotations Comparator Matrix (7 cols) */}
-          <div className="lg:col-span-7 space-y-6 sticky top-24">
+          <div className="lg:col-span-7 space-y-6 lg:sticky lg:top-24">
             {selectedRfq && (
               <div className="bg-white rounded-3xl border border-industrial-200 p-6 shadow-card space-y-6">
                 {/* Selected RFQ Header */}

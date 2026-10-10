@@ -61,7 +61,7 @@ export const WishlistPage: React.FC = () => {
 
   if (!isAuthenticated && !tokenStorage.hasToken()) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+      <div className="max-w-[1720px] w-full mx-auto px-4 sm:px-8 lg:px-12 py-16">
         <div className="bg-white rounded-3xl p-12 text-center max-w-xl mx-auto shadow-sm border border-industrial-200">
           <div className="w-16 h-16 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto mb-5">
             <Heart className="w-8 h-8 fill-rose-500/20" />
@@ -84,7 +84,7 @@ export const WishlistPage: React.FC = () => {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
+    <div className="max-w-[1720px] w-full mx-auto px-4 sm:px-8 lg:px-12 py-8 sm:py-10">
       {/* Breadcrumb & Navigation */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
         <div className="space-y-1">

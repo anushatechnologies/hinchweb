@@ -25,7 +25,7 @@ export const CatalogPage: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [_isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
+  const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
 
   // Filters State from URL or defaults
   const categoryParam = searchParams.get('category') || '';
@@ -861,6 +861,186 @@ export const CatalogPage: React.FC = () => {
           )}
         </main>
       </div>
+
+      {/* Mobile Filters Slide-Over Drawer */}
+      {isMobileFilterOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end lg:hidden animate-in fade-in duration-200">
+          <div
+            className="fixed inset-0 bg-industrial-950/60 backdrop-blur-xs"
+            onClick={() => setIsMobileFilterOpen(false)}
+          />
+          <div className="relative w-full max-w-xs sm:max-w-sm bg-white h-full shadow-2xl flex flex-col z-10 animate-in slide-in-from-right duration-300">
+            {/* Header */}
+            <div className="p-4 bg-industrial-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2 font-bold text-sm">
+                <SlidersHorizontal className="w-4 h-4 text-brand-400" />
+                <span>Filter Materials</span>
+              </div>
+              <div className="flex items-center gap-2">
+                {hasActiveFilters && (
+                  <button
+                    onClick={handleClearAllFilters}
+                    className="text-xs text-brand-300 hover:text-white font-semibold cursor-pointer underline"
+                  >
+                    Reset
+                  </button>
+                )}
+                <button
+                  onClick={() => setIsMobileFilterOpen(false)}
+                  className="p-1 rounded-lg hover:bg-white/10 text-industrial-400 hover:text-white cursor-pointer"
+                  aria-label="Close filters"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Scrollable Filters Content */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-5 text-xs">
+              {/* 24-Hour Dispatch */}
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200">
+                <label className="flex items-center justify-between cursor-pointer">
+                  <span className="text-xs font-bold text-amber-950">⚡ 24-Hour Dispatch</span>
+                  <input
+                    type="checkbox"
+                    checked={only24HourDelivery}
+                    onChange={(e) => setOnly24HourDelivery(e.target.checked)}
+                    className="w-4 h-4 text-amber-600 rounded"
+                  />
+                </label>
+              </div>
+
+              {/* Verified Manufacturers */}
+              <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200">
+                <label className="flex items-center justify-between cursor-pointer">
+                  <div className="flex items-center gap-1.5 font-bold text-emerald-950">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                    <span>Verified Manufacturers</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={onlyVerifiedSeller}
+                    onChange={(e) => setOnlyVerifiedSeller(e.target.checked)}
+                    className="w-4 h-4 text-emerald-600 rounded"
+                  />
+                </label>
+              </div>
+
+              {/* Categories */}
+              <div className="space-y-2">
+                <h4 className="font-bold text-xs uppercase tracking-wider text-industrial-500">Categories</h4>
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                  {categories.map((cat) => (
+                    <label key={cat.id} className="flex items-center justify-between cursor-pointer py-0.5 text-industrial-800">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedCategories.includes(cat.name)}
+                          onChange={() => toggleCategory(cat.name)}
+                          className="w-4 h-4 text-brand-600 rounded"
+                        />
+                        <span>{cat.name}</span>
+                      </div>
+                      {cat.productCount !== undefined && cat.productCount > 0 && (
+                        <span className="text-[10px] text-industrial-400 font-mono">{cat.productCount}</span>
+                      )}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Subcategories */}
+              {availableSubcategories.length > 0 && (
+                <div className="space-y-2 pt-3 border-t border-industrial-100">
+                  <h4 className="font-bold text-xs uppercase tracking-wider text-industrial-500">Subcategories</h4>
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {availableSubcategories.map((sub, idx) => (
+                      <label key={idx} className="flex items-center justify-between cursor-pointer py-0.5 text-industrial-800">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedSubcategories.some((s) => s.toLowerCase() === sub.name.toLowerCase())}
+                            onChange={() => toggleSubcategory(sub.name, sub.subcategoryId)}
+                            className="w-4 h-4 text-brand-600 rounded"
+                          />
+                          <span className="truncate max-w-[160px]">{sub.name}</span>
+                        </div>
+                        {sub.count !== undefined && sub.count > 0 && (
+                          <span className="text-[10px] text-industrial-400 font-mono">{sub.count}</span>
+                        )}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Brands */}
+              {brands.length > 0 && (
+                <div className="space-y-2 pt-3 border-t border-industrial-100">
+                  <h4 className="font-bold text-xs uppercase tracking-wider text-industrial-500">Brands & Mills</h4>
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {brands.map((brand) => (
+                      <label key={brand.id} className="flex items-center justify-between cursor-pointer py-0.5 text-industrial-800">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedBrands.includes(brand.name)}
+                            onChange={() => toggleBrand(brand.name)}
+                            className="w-4 h-4 text-brand-600 rounded"
+                          />
+                          <span>{brand.name}</span>
+                        </div>
+                        {brand.productCount !== undefined && brand.productCount > 0 && (
+                          <span className="text-[10px] text-industrial-400 font-mono">{brand.productCount}</span>
+                        )}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* GST Rates */}
+              <div className="space-y-2 pt-3 border-t border-industrial-100">
+                <h4 className="font-bold text-xs uppercase tracking-wider text-industrial-500">GST Rates</h4>
+                <div className="grid grid-cols-2 gap-2">
+                  {[18, 28].map((rate) => (
+                    <button
+                      key={rate}
+                      type="button"
+                      onClick={() => toggleGstRate(rate)}
+                      className={`py-2 px-3 rounded-xl border text-center font-mono font-bold transition-all ${
+                        selectedGstRates.includes(rate)
+                          ? 'bg-emerald-50 border-emerald-500 text-emerald-800'
+                          : 'bg-white border-industrial-200 text-industrial-800'
+                      }`}
+                    >
+                      {rate}% GST
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Actions */}
+            <div className="p-4 bg-industrial-50 border-t border-industrial-200 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleClearAllFilters}
+                className="flex-1 py-2.5 bg-white border border-industrial-300 text-industrial-700 font-bold rounded-xl text-xs"
+              >
+                Clear All
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsMobileFilterOpen(false)}
+                className="flex-1 py-2.5 bg-brand-600 hover:bg-brand-500 text-white font-bold rounded-xl text-xs shadow-md shadow-brand-600/20"
+              >
+                Apply ({filteredProducts.length})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

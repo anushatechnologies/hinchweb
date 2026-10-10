@@ -126,8 +126,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
 
         {/* Quantity Stepper & Add to Cart / RFQ */}
         <div className="space-y-2 pt-1">
-          <div className="flex items-center gap-2">
-            <div className="flex items-center bg-industrial-100 rounded-xl p-0.5 border border-industrial-300">
+          <div className="flex flex-wrap sm:flex-nowrap items-stretch sm:items-center gap-2">
+            <div className="flex items-center justify-between sm:justify-start bg-industrial-100 rounded-xl p-0.5 border border-industrial-300 shrink-0">
               <button
                 type="button"
                 onClick={() => setQuantity((q) => Math.max(1, q - 1))}
@@ -161,7 +161,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
             <button
               type="button"
               onClick={handleAddToCart}
-              className="flex-1 py-2 px-3 bg-brand-600 hover:bg-brand-500 active:scale-98 text-white rounded-xl font-bold text-xs shadow-md shadow-brand-600/20 flex items-center justify-center gap-1.5 transition-all"
+              className="flex-1 min-w-[110px] py-2 px-3 bg-brand-600 hover:bg-brand-500 active:scale-98 text-white rounded-xl font-bold text-xs shadow-md shadow-brand-600/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
             >
               <ShoppingCart className="w-3.5 h-3.5" />
               <span>Add to Cart</span>

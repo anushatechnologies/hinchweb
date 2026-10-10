@@ -91,7 +91,7 @@ export const CategoryRibbon: React.FC<CategoryRibbonProps> = ({ activeSlug, acti
 
   return (
     <nav aria-label="Categories Ribbon" className="bg-white border-b border-gray-200 shadow-xs sticky top-16 z-30">
-      <div className="max-w-[1720px] w-full mx-auto px-2 sm:px-6 lg:px-8">
+      <div className="max-w-[1720px] w-full mx-auto px-4 sm:px-8 lg:px-12">
         <div className="flex items-end justify-start xl:justify-between gap-3 sm:gap-6 md:gap-8 overflow-x-auto no-scrollbar">
           {/* 1. 24 hrs Delivery (Left item with NEW badge and clock icon) */}
           <Link
