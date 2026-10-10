@@ -347,53 +347,6 @@ export const HomePage: React.FC = () => {
         </section>
       )}
 
-      {/* 5. POST RFQ BANNER */}
-      <section className="max-w-[1720px] w-full mx-auto px-4 sm:px-8 lg:px-12">
-        <div className="bg-gradient-to-br from-brand-600 via-brand-700 to-industrial-900 rounded-3xl p-6 sm:p-10 text-white shadow-xl relative overflow-hidden">
-          <div className="relative z-10 max-w-2xl space-y-4">
-            <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-md px-3.5 py-1.5 rounded-full text-xs font-bold tracking-wide uppercase text-white">
-              <Sparkles className="w-4 h-4" />
-              <span>Broadcast RFQ in 60 Seconds</span>
-            </div>
-
-            <h2 className="text-2xl sm:text-4xl font-black leading-tight">
-              Have a Custom Project BOQ or Bar Bending Schedule?
-            </h2>
-
-            <p className="text-xs sm:text-sm text-brand-100 leading-relaxed">
-              Upload your material bill of quantities and receive competing wholesale bids from verified primary manufacturers with Mill Test Certificates.
-            </p>
-
-            <div className="flex flex-wrap items-center gap-3 pt-2">
-              <Link
-                to="/estimations"
-                className="px-6 py-3 rounded-xl bg-industrial-950 hover:bg-black text-amber-300 font-black text-xs uppercase tracking-wider shadow-lg shadow-black/20 transition-all flex items-center gap-2 border border-amber-400/40 cursor-pointer"
-              >
-                <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
-                <span>AI Instant Estimate & Quotation</span>
-              </Link>
-
-              <button
-                type="button"
-                onClick={() => openRFQModal()}
-                className="px-6 py-3 rounded-xl bg-white text-brand-700 hover:bg-brand-50 font-black text-xs uppercase tracking-wider shadow-lg shadow-black/10 transition-all active:scale-98 cursor-pointer flex items-center gap-2"
-              >
-                <FileText className="w-4 h-4 text-brand-600" />
-                <span>Manual RFQ Broadcast</span>
-              </button>
-
-              <Link
-                to="/estimations"
-                className="px-5 py-3 rounded-xl bg-brand-800/80 hover:bg-brand-800 text-white font-bold text-xs border border-brand-500/40 transition-colors flex items-center gap-2"
-              >
-                <Sparkles className="w-4 h-4 text-brand-300" />
-                <span>AI Estimation</span>
-              </Link>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* 6. FEATURED PRODUCTS (With Skeletons while loading) */}
       <section className="max-w-[1720px] w-full mx-auto px-4 sm:px-8 lg:px-12">
         <div className="flex items-end justify-between mb-6">
