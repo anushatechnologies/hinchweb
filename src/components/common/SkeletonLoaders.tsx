@@ -184,15 +184,6 @@ export const CategoryPageSkeleton: React.FC = () => {
         <div className="h-3.5 bg-gray-300 rounded w-32" />
       </div>
 
-      {/* Hero Banner Skeleton */}
-      <div className="h-56 bg-gradient-to-r from-industrial-900 via-industrial-800 to-industrial-950 rounded-3xl p-8 flex items-center justify-between">
-        <div className="space-y-4 max-w-xl">
-          <div className="h-6 bg-white/20 rounded-full w-48" />
-          <div className="h-10 bg-white/30 rounded-xl w-72" />
-          <div className="h-4 bg-white/20 rounded w-96" />
-        </div>
-        <div className="w-44 h-44 rounded-2xl bg-white/10 hidden md:block" />
-      </div>
 
       {/* Shop by Categories Grid Skeleton */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 space-y-6">

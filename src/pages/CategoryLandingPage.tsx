@@ -11,13 +11,11 @@ import { getCategoryImageUrl } from './HomePage';
 import {
   ChevronRight,
   ChevronLeft,
-  ShieldCheck,
-  Truck,
   Sparkles,
   FileText,
-  Layers,
   ArrowLeft,
 } from 'lucide-react';
+
 
 interface SubcategoryShowcase {
   subcategory: Subcategory;
@@ -180,11 +178,11 @@ export const CategoryLandingPage: React.FC = () => {
       {/* Category Navigation Ribbon (Moglix Reference Style with Active Underline) */}
       <CategoryRibbon activeSlug={categorySlug} activeName={category?.name} />
 
-      {/* 1. BREADCRUMBS & CATEGORY HERO */}
+      {/* 1. BREADCRUMBS & CATEGORY NAVIGATION */}
       <section className="bg-white border-b border-industrial-200">
-        <div className="max-w-[1720px] w-full mx-auto px-4 sm:px-8 lg:px-12 py-6 space-y-4">
+        <div className="max-w-[1720px] w-full mx-auto px-4 sm:px-8 lg:px-12 py-4 sm:py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           {/* Breadcrumbs */}
-          <div className="flex items-center gap-2 text-xs text-industrial-500">
+          <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs text-industrial-500">
             <Link to="/" className="hover:text-industrial-900 transition-colors">
               Home
             </Link>
@@ -194,55 +192,18 @@ export const CategoryLandingPage: React.FC = () => {
             </Link>
             <span>/</span>
             <span className="font-bold text-industrial-950">{category.name}</span>
-          </div>
+          </nav>
 
-          {/* Hero Banner Container */}
-          <div className="relative bg-gradient-to-r from-industrial-950 via-slate-900 to-industrial-950 text-white rounded-3xl p-6 sm:p-10 lg:p-12 overflow-hidden shadow-xl border border-industrial-800">
-            {/* Background pattern decor */}
-            <div className="absolute right-0 top-0 bottom-0 w-1/2 opacity-10 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px] pointer-events-none" />
-
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center relative z-10">
-              <div className="lg:col-span-8 space-y-4">
-                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-brand-500/20 text-brand-300 border border-brand-500/30 text-xs font-black uppercase tracking-wider">
-                  <Layers className="w-3.5 h-3.5" />
-                  <span>Wholesale Procurement Category</span>
-                </div>
-
-                <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-white uppercase">
-                  {category.name}
-                </h1>
-
-                <p className="text-sm sm:text-base text-industrial-300 max-w-2xl leading-relaxed">
-                  {category.description || `Industrial ${category.name} products for business procurement with factory wholesale pricing, 100% GST ITC, and direct site dispatch.`}
-                </p>
-
-                {/* Value Props Row */}
-                <div className="flex flex-wrap items-center gap-4 pt-2 text-xs text-industrial-300">
-                  <div className="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-xl backdrop-blur-xs">
-                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                    <span>100% Verified Mill Test Certificates</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-xl backdrop-blur-xs">
-                    <Truck className="w-4 h-4 text-brand-400" />
-                    <span>Heavy Transit Site Logistics</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Category Showcase Image */}
-              <div className="lg:col-span-4 flex justify-center lg:justify-end">
-                <div className="w-48 h-48 sm:w-56 sm:h-56 rounded-3xl overflow-hidden border-2 border-white/20 shadow-2xl bg-white/5 backdrop-blur-xs p-2">
-                  <img
-                    src={getCategoryImageUrl(category)}
-                    alt={category.name}
-                    className="w-full h-full object-cover rounded-2xl"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
+          <Link
+            to={`/catalog?category=${encodeURIComponent(category.name)}`}
+            className="text-xs font-bold text-brand-600 hover:text-brand-700 flex items-center gap-1 self-start sm:self-auto"
+          >
+            <span>View All {category.name} Products</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </Link>
         </div>
       </section>
+
 
       {/* 2. SHOP BY CATEGORIES (Visual Subcategories Cards Grid) */}
       <section className="max-w-[1720px] w-full mx-auto px-4 sm:px-8 lg:px-12 space-y-4">
