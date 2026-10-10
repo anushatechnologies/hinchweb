@@ -76,19 +76,6 @@ export const SubcategoryPageSkeleton: React.FC<{ categoryName?: string }> = () =
           <div className="h-3 bg-gray-200 rounded w-3/4" />
         </div>
       </div>
-
-      {/* 3. Shop by Brands Circular Row Skeleton */}
-      <div className="bg-white rounded-2xl p-5 sm:p-6 border border-gray-200 shadow-2xs space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="h-6 bg-gray-200 rounded w-36" />
-        </div>
-        <div className="flex items-center gap-6 overflow-hidden py-2">
-          {[...Array(8)].map((_, i) => (
-            <BrandCircleSkeleton key={i} />
-          ))}
-        </div>
-      </div>
-
       {/* 4. Bestsellers Carousel Skeleton (Blue tint) */}
       <div className="bg-blue-50/70 rounded-3xl p-5 sm:p-6 border border-blue-100 shadow-2xs space-y-4">
         <div className="flex items-center justify-between">
