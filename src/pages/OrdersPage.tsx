@@ -22,7 +22,9 @@ import {
   MapPin,
   Phone,
   ShieldAlert,
+  CreditCard,
 } from 'lucide-react';
+import { paymentApi } from '../api/paymentApi';
 import { ReviewModal } from '../components/common/ReviewModal';
 import { useAuthStore } from '../store/useAuthStore';
 import { useAuthModalStore } from '../store/useAuthModalStore';
@@ -47,6 +49,7 @@ export const OrdersPage: React.FC = () => {
   const [returnReason, setReturnReason] = useState('Material Quality / Specification Deviation');
   const [returnDescription, setReturnDescription] = useState('');
   const [isSubmittingReturn, setIsSubmittingReturn] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
   const { isAuthenticated, user } = useAuthStore();
   const { openAuthModal } = useAuthModalStore();
@@ -134,6 +137,62 @@ export const OrdersPage: React.FC = () => {
     }
   };
 
+  const handlePayOrder = async (order: Order) => {
+    setIsProcessingPayment(true);
+    try {
+      const paymentOrder = await paymentApi.createPaymentOrder({
+        orderId: Number(order.id),
+        purpose: 'ORDER_PAYMENT',
+      });
+
+      if (typeof window !== 'undefined' && (window as any).Razorpay) {
+        const rzpOptions = {
+          key: paymentOrder.keyId || paymentOrder.razorpayKeyId,
+          amount: paymentOrder.amountInPaise,
+          currency: paymentOrder.currency || 'INR',
+          name: 'HinchMart B2B Marketplace',
+          description: paymentOrder.description || `Settlement for PO #${order.orderNumber}`,
+          order_id: paymentOrder.razorpayOrderId || paymentOrder.gatewayOrderId,
+          prefill: {
+            name: paymentOrder.customerName || user?.name || user?.fullName || 'Enterprise Buyer',
+            email: paymentOrder.customerEmail || user?.email || '',
+            contact: paymentOrder.customerPhone || user?.phone || '',
+          },
+          theme: { color: '#d9232d' },
+          handler: async (response: any) => {
+            try {
+              await paymentApi.verifyPayment({
+                orderId: Number(order.id),
+                razorpayOrderId: response.razorpay_order_id,
+                razorpayPaymentId: response.razorpay_payment_id,
+                razorpaySignature: response.razorpay_signature,
+              });
+              showToast('success', 'Razorpay payment verified! Order confirmed.', 'Payment Confirmed');
+              const refreshed = await orderApi.getOrders();
+              setOrders(refreshed);
+              const updatedSelected = refreshed.find((o) => o.id === order.id);
+              if (updatedSelected) setSelectedOrder(updatedSelected);
+            } catch (verErr: any) {
+              showToast('error', verErr?.message || 'Payment verification failed', 'Payment Error');
+            }
+          },
+          modal: {
+            ondismiss: () => {
+              showToast('info', 'Payment window closed.', 'Payment Incomplete');
+            },
+          },
+        };
+
+        const rzp = new (window as any).Razorpay(rzpOptions);
+        rzp.open();
+      }
+    } catch (err: any) {
+      showToast('error', err?.message || 'Failed to initialize payment gateway', 'Gateway Error');
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  };
+
   const handleCancelOrder = async (order: Order) => {
     if (!window.confirm(`Are you sure you want to cancel PO #${order.orderNumber}?`)) return;
     setIsCancelling(true);
@@ -148,7 +207,16 @@ export const OrdersPage: React.FC = () => {
       if (selectedOrder?.id === order.id) {
         setSelectedOrder((prev) => (prev ? { ...prev, status: 'CANCELLED' as any } : null));
       }
-      showToast('success', `Order #${res.orderNumber || order.orderNumber} has been cancelled.`, 'Order Cancelled');
+      if (order.paymentStatus === 'PAID') {
+        try {
+          await paymentApi.refundOrderPayment(order.id);
+          showToast('success', `Order #${res.orderNumber || order.orderNumber} cancelled. Refund credited to your wallet / bank account.`, 'Refund Processed');
+        } catch {
+          showToast('success', `Order #${res.orderNumber || order.orderNumber} cancelled. Refund request logged.`, 'Order Cancelled');
+        }
+      } else {
+        showToast('success', `Order #${res.orderNumber || order.orderNumber} has been cancelled.`, 'Order Cancelled');
+      }
     } catch (err: any) {
       showToast('error', err?.message || 'Failed to cancel order.', 'Cancellation Error');
     } finally {
@@ -369,6 +437,18 @@ export const OrdersPage: React.FC = () => {
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
+                    {selectedOrder.paymentStatus !== 'PAID' && selectedOrder.status !== ('CANCELLED' as any) && (
+                      <button
+                        type="button"
+                        onClick={() => handlePayOrder(selectedOrder)}
+                        disabled={isProcessingPayment}
+                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-sm flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                        title="Complete Razorpay Payment"
+                      >
+                        <CreditCard className="w-3.5 h-3.5" />
+                        <span>{isProcessingPayment ? 'Processing...' : 'Pay Now'}</span>
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => handleFetchTracking(selectedOrder)}

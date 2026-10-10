@@ -588,6 +588,81 @@ export interface ApplyCouponResult {
   coupon?: any;
 }
 
+export type PaymentPurpose = 'ORDER_PAYMENT' | 'CHECKOUT' | 'CART_PAYMENT' | 'WALLET_TOPUP';
+
+export type PaymentStatus =
+  | 'CREATED'
+  | 'AUTHORIZED'
+  | 'CAPTURED'
+  | 'FAILED'
+  | 'REFUNDED'
+  | 'REFUNDED_TO_WALLET';
+
+export interface PaymentOrderCreateRequest {
+  orderId?: number;
+  addressId?: number;
+  deliverySlot?: string;
+  requiresCraneUnloading?: boolean;
+  amount?: number;
+  purpose: PaymentPurpose;
+}
+
+export interface PaymentOrderCreateResponse {
+  razorpayOrderId: string;
+  keyId: string;
+  amount: number;
+  amountInPaise: number;
+  currency: string;
+  orderId?: number;
+  orderNumber?: string;
+  purpose: PaymentPurpose;
+  customerName?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  description?: string;
+  // Aliases for compatibility
+  gatewayOrderId?: string;
+  razorpayKeyId?: string;
+}
+
+export interface PaymentVerifyRequest {
+  orderId?: number;
+  razorpayOrderId: string;
+  razorpayPaymentId: string;
+  razorpaySignature: string;
+  // Aliases for backward compatibility
+  gatewayOrderId?: string;
+  gatewayPaymentId?: string;
+  gatewaySignature?: string;
+  paymentId?: number;
+}
+
+export interface PaymentStatusResponse {
+  paymentId: number;
+  customerId?: number;
+  customerName?: string;
+  customerPhone?: string;
+  orderId?: number;
+  orderNumber?: string;
+  razorpayPaymentId: string;
+  razorpayOrderId: string;
+  status: PaymentStatus;
+  amount: number;
+  currency: string;
+  purpose: PaymentPurpose;
+  paymentMethod?: string;
+  email?: string;
+  contact?: string;
+  vpa?: string | null;
+  bank?: string | null;
+  cardNetwork?: string | null;
+  cardLast4?: string | null;
+  errorCode?: string | null;
+  errorDescription?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface WishlistItem {
   productId: number | string;
   title: string;

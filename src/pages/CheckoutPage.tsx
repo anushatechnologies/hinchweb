@@ -257,39 +257,40 @@ export const CheckoutPage: React.FC = () => {
 
       if (isOnline && typeof window !== 'undefined' && (window as any).Razorpay) {
         try {
-          // 8.1 Call paymentApi.initiatePayment
-          const initiation = await paymentApi.initiatePayment(
-            newOrder.id || (newOrder as any).orderId || 1,
-            String(paymentMethod).toUpperCase()
-          );
+          // 8.1 Call paymentApi.createPaymentOrder (Step 1)
+          const paymentOrder = await paymentApi.createPaymentOrder({
+            orderId: Number(newOrder.id || (newOrder as any).orderId),
+            purpose: 'ORDER_PAYMENT',
+          });
 
           const rzpOptions = {
-            key: initiation.razorpayKeyId || 'rzp_test_51MockHinchmartKey',
-            amount: initiation.amountInPaise || Math.round((checkoutPreview?.grandTotal || grandTotal) * 100),
-            currency: initiation.currency || 'INR',
-            name: initiation.companyName || 'HinchMart B2B Marketplace',
-            description: `Order #${newOrder.orderNumber} - Wholesale Industrial Procurement`,
-            order_id: initiation.gatewayOrderId,
+            key: paymentOrder.keyId || paymentOrder.razorpayKeyId,
+            amount: paymentOrder.amountInPaise || Math.round((checkoutPreview?.grandTotal || grandTotal) * 100),
+            currency: paymentOrder.currency || 'INR',
+            name: 'HinchMart B2B Marketplace',
+            description: paymentOrder.description || `Order #${newOrder.orderNumber} - Wholesale Industrial Procurement`,
+            order_id: paymentOrder.razorpayOrderId || paymentOrder.gatewayOrderId,
             prefill: {
-              name: user?.name || user?.fullName || 'Enterprise Buyer',
-              email: user?.email || 'buyer@enterprise.com',
-              contact: user?.phone || '9999999999',
+              name: paymentOrder.customerName || user?.name || user?.fullName || 'Enterprise Buyer',
+              email: paymentOrder.customerEmail || user?.email || '',
+              contact: paymentOrder.customerPhone || user?.phone || '',
             },
             theme: {
               color: '#d9232d',
             },
             handler: async (response: any) => {
               try {
-                // 8.2 Call paymentApi.verifyPayment
+                // 8.2 Call paymentApi.verifyPayment (Step 2)
                 await paymentApi.verifyPayment({
-                  paymentId: initiation.id || 1,
-                  gatewayOrderId: response.razorpay_order_id || initiation.gatewayOrderId,
-                  gatewayPaymentId: response.razorpay_payment_id || 'mock_pay_id',
-                  gatewaySignature: response.razorpay_signature || 'mock_sig',
+                  orderId: Number(newOrder.id || paymentOrder.orderId),
+                  razorpayOrderId: response.razorpay_order_id,
+                  razorpayPaymentId: response.razorpay_payment_id,
+                  razorpaySignature: response.razorpay_signature,
                 });
                 showToast('success', 'Razorpay online payment verified successfully!', 'Payment Verified');
-              } catch (verErr) {
+              } catch (verErr: any) {
                 console.warn('Payment verification notice:', verErr);
+                showToast('error', verErr?.message || 'Payment signature verification failed.', 'Verification Warning');
               }
 
               await clearCart();
