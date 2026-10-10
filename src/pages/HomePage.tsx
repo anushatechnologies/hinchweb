@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { productApi } from '../api/productApi';
 import { categoryApi } from '../api/categoryApi';
 import { bannerApi } from '../api/bannerApi';
-import type { Product, Category, Brand, Banner } from '../types';
+import type { Product, Category, Banner } from '../types';
 import { ProductCard } from '../components/product/ProductCard';
 import { CategoryRibbon } from '../components/layout/CategoryRibbon';
 import { useRFQModalStore } from '../store/useRFQModalStore';
@@ -59,7 +59,6 @@ export const HomePage: React.FC = () => {
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
   const [bulkDeals, setBulkDeals] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [brands, setBrands] = useState<Brand[]>([]);
   const [banners, setBanners] = useState<Banner[]>([]);
   const [activeSlide, setActiveSlide] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -71,13 +70,11 @@ export const HomePage: React.FC = () => {
       productApi.getFeaturedProducts(),
       productApi.getBulkDeals(),
       categoryApi.getCategories({ includeSubcategories: true }),
-      categoryApi.getBrands(),
       bannerApi.getBanners(),
-    ]).then(([featRes, dealsRes, catRes, brandRes, banRes]) => {
+    ]).then(([featRes, dealsRes, catRes, banRes]) => {
       if (featRes.status === 'fulfilled') setFeaturedProducts(featRes.value);
       if (dealsRes.status === 'fulfilled') setBulkDeals(dealsRes.value);
       if (catRes.status === 'fulfilled') setCategories(catRes.value);
-      if (brandRes.status === 'fulfilled') setBrands(brandRes.value);
       if (banRes.status === 'fulfilled') setBanners(banRes.value);
       setIsLoading(false);
     });
@@ -438,46 +435,6 @@ export const HomePage: React.FC = () => {
           )}
         </div>
       </section>
-
-      {/* 7. AUTHORIZED BRANDS SHOWCASE */}
-      {brands.length > 0 && (
-        <section className="max-w-[1720px] w-full mx-auto px-4 sm:px-8 lg:px-12">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-industrial-200 shadow-subtle space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-xs font-extrabold text-brand-600 uppercase tracking-wider mb-1">
-                  Authorized Brands
-                </div>
-                <h2 className="text-xl sm:text-2xl font-black text-industrial-950">
-                  Direct Mill & Factory Alliances
-                </h2>
-              </div>
-              <span className="text-xs text-emerald-700 font-semibold bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
-                100% Genuine MTC Certified
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
-              {brands.map((brand) => (
-                <Link
-                  key={brand.id}
-                  to={`/catalog?brand=${encodeURIComponent(brand.name)}`}
-                  className="group flex flex-col items-center justify-center p-4 rounded-2xl border border-industrial-200 hover:border-brand-500 hover:bg-brand-50/20 hover:shadow-card transition-all"
-                >
-                  <span className="font-mono font-black text-xs text-industrial-900 group-hover:text-brand-600 tracking-wider uppercase text-center">
-                    {brand.name}
-                  </span>
-                  {brand.productCount !== undefined && brand.productCount > 0 && (
-                    <span className="text-[10px] text-industrial-400 mt-1">
-                      {brand.productCount} SKUs
-                    </span>
-                  )}
-                </Link>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
     </div>
   );
 };
