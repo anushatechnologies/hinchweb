@@ -1422,3 +1422,16 @@ export interface TicketFilterParams {
   orderId?: number;
 }
 
+export interface ActiveVideoBanner {
+  id: number;
+  videoUrl: string;
+  posterUrl?: string;
+  title: string;
+  subtitle?: string;
+  badge?: string;
+  ctaText?: string;
+  targetScreen?: string;
+  isActive: boolean;
+}
+
+
