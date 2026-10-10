@@ -7,8 +7,9 @@ import { locationApi } from '../api/locationApi';
 import { creditApi } from '../api/creditApi';
 import { addressApi } from '../api/addressApi';
 import { authApi } from '../api/authApi';
-import type { KYCDocument, KYCDocumentType, CreditLedger, CreditApplicationResult } from '../types';
-import { formatINR, formatDate } from '../utils/formatters';
+import { paymentApi } from '../api/paymentApi';
+import type { KYCDocument, KYCDocumentType, CreditLedger, CreditApplicationResult, PaymentStatusResponse } from '../types';
+import { formatINR, formatDate, formatDateTime } from '../utils/formatters';
 import {
   ShieldCheck,
   Plus,
@@ -25,16 +26,22 @@ import {
   ArrowDownLeft,
   RefreshCw,
   Eye,
+  Receipt,
+  CheckCircle2,
+  AlertCircle,
+  XCircle,
 } from 'lucide-react';
 
 export const AccountPage: React.FC = () => {
   const { user, addresses, addAddress, deleteAddress, setDefaultAddress, updateUser } = useAuthStore();
   const { showToast } = useToastStore();
 
-  const [activeTab, setActiveTab] = useState<'profile' | 'addresses' | 'kyc' | 'credit'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'addresses' | 'kyc' | 'credit' | 'payments'>('profile');
   const [isAddingSite, setIsAddingSite] = useState(false);
   const [documents, setDocuments] = useState<KYCDocument[]>([]);
   const [isUploadingDoc, setIsUploadingDoc] = useState(false);
+  const [paymentHistory, setPaymentHistory] = useState<PaymentStatusResponse[]>([]);
+  const [isLoadingPayments, setIsLoadingPayments] = useState(false);
 
   // Profile Edit Form
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -125,6 +132,25 @@ export const AccountPage: React.FC = () => {
         .finally(() => setIsLoadingCredit(false));
     }
   }, [activeTab]);
+
+  const fetchPayments = async () => {
+    if (!user?.id) return;
+    setIsLoadingPayments(true);
+    try {
+      const data = await paymentApi.getCustomerPaymentHistory(user.id);
+      setPaymentHistory(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.warn('Customer payment history notice:', err);
+    } finally {
+      setIsLoadingPayments(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'payments') {
+      fetchPayments();
+    }
+  }, [activeTab, user?.id]);
 
   const handleApplyCredit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -313,6 +339,7 @@ export const AccountPage: React.FC = () => {
           { id: 'addresses', label: `Delivery Sites & Address Book (${addresses.length})` },
           { id: 'kyc', label: `KYC Compliance Documents (${documents.length})` },
           { id: 'credit', label: 'B2B Trade Credit & Ledger' },
+          { id: 'payments', label: `Online Payments & Receipts (${paymentHistory.length})` },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -1137,6 +1164,150 @@ export const AccountPage: React.FC = () => {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Online Payments Tab */}
+      {activeTab === 'payments' && (
+        <div className="space-y-6 text-xs">
+          <div className="bg-white p-6 sm:p-8 rounded-3xl border border-industrial-200 shadow-card space-y-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-industrial-100">
+              <div>
+                <h3 className="text-base sm:text-lg font-black text-industrial-950 flex items-center gap-2">
+                  <Receipt className="w-5 h-5 text-brand-600" />
+                  <span>Razorpay Payment History & Statements</span>
+                </h3>
+                <p className="text-xs text-industrial-500 mt-1">
+                  Synchronized live from HinchMart Gateway APIs for buyer <strong className="text-industrial-900">{user.companyName || user.fullName || user.name}</strong>.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={fetchPayments}
+                disabled={isLoadingPayments}
+                className="px-4 py-2 bg-industrial-100 hover:bg-industrial-200 text-industrial-800 rounded-xl font-bold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isLoadingPayments ? 'animate-spin' : ''}`} />
+                <span>{isLoadingPayments ? 'Refreshing...' : 'Sync Payments'}</span>
+              </button>
+            </div>
+
+            {/* Metrics Overview */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
+                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Transactions</div>
+                <div className="text-2xl font-black font-mono text-slate-900">{paymentHistory.length}</div>
+              </div>
+              <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-1">
+                <div className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider">Captured Settlements</div>
+                <div className="text-2xl font-black font-mono text-emerald-800">
+                  {formatINR(
+                    paymentHistory
+                      .filter((p) => p.status === 'CAPTURED')
+                      .reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+                  )}
+                </div>
+              </div>
+              <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 space-y-1">
+                <div className="text-[11px] font-bold text-amber-700 uppercase tracking-wider">Refunds Processed</div>
+                <div className="text-2xl font-black font-mono text-amber-800">
+                  {paymentHistory.filter((p) => p.status === 'REFUNDED' || p.status === 'REFUNDED_TO_WALLET').length}
+                </div>
+              </div>
+            </div>
+
+            {/* Payments Table / List */}
+            {isLoadingPayments ? (
+              <div className="py-16 text-center text-industrial-500 flex flex-col items-center gap-2">
+                <Loader2 className="w-6 h-6 animate-spin text-brand-600" />
+                <span>Fetching live payment statements from backend gateway...</span>
+              </div>
+            ) : paymentHistory.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-industrial-100 text-[11px] uppercase tracking-wider text-industrial-500">
+                      <th className="py-3 font-bold">Transaction Reference</th>
+                      <th className="py-3 font-bold">Order Details</th>
+                      <th className="py-3 font-bold">Method</th>
+                      <th className="py-3 font-bold">Status</th>
+                      <th className="py-3 font-bold">Timestamp</th>
+                      <th className="py-3 font-bold text-right">Settled Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-industrial-100">
+                    {paymentHistory.map((pm) => (
+                      <tr key={pm.paymentId || pm.razorpayPaymentId} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="py-3.5 space-y-0.5">
+                          <div className="font-mono font-bold text-industrial-900 text-xs">
+                            {pm.razorpayPaymentId || `TXN-${pm.paymentId}`}
+                          </div>
+                          {pm.razorpayOrderId && (
+                            <div className="font-mono text-[10px] text-industrial-400">
+                              Order ID: {pm.razorpayOrderId}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-3.5">
+                          <div className="font-bold text-industrial-900">
+                            {pm.orderNumber ? `#${pm.orderNumber}` : pm.orderId ? `Order #${pm.orderId}` : 'Direct Top-Up'}
+                          </div>
+                          <div className="text-[10px] text-industrial-500">{pm.purpose || 'ORDER_PAYMENT'}</div>
+                        </td>
+                        <td className="py-3.5">
+                          <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 font-semibold text-[11px] uppercase">
+                            {pm.paymentMethod || 'UPI/ONLINE'}
+                          </span>
+                        </td>
+                        <td className="py-3.5">
+                          {pm.status === 'CAPTURED' ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              <span>Captured</span>
+                            </span>
+                          ) : pm.status === 'REFUNDED' || pm.status === 'REFUNDED_TO_WALLET' ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold text-[10px]">
+                              <AlertCircle className="w-3 h-3 text-amber-600" />
+                              <span>Refunded</span>
+                            </span>
+                          ) : pm.status === 'FAILED' ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 font-bold text-[10px]">
+                              <XCircle className="w-3 h-3 text-rose-600" />
+                              <span>Failed</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold text-[10px]">
+                              <Clock className="w-3 h-3 text-slate-500" />
+                              <span>{pm.status}</span>
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3.5 text-industrial-600 text-[11px]">
+                          {pm.createdAt ? formatDateTime(pm.createdAt) : 'Recently'}
+                        </td>
+                        <td className="py-3.5 text-right font-mono font-black text-industrial-950 text-sm">
+                          {formatINR(pm.amount)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="py-12 px-4 text-center space-y-3 bg-industrial-50/60 rounded-2xl border border-dashed border-industrial-200">
+                <div className="w-12 h-12 rounded-2xl bg-white border border-industrial-200 flex items-center justify-center mx-auto text-industrial-400 shadow-2xs">
+                  <Receipt className="w-6 h-6 text-brand-600" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm text-industrial-900">No Online Payment Transactions Yet</h4>
+                  <p className="text-xs text-industrial-500 max-w-md mx-auto mt-1 leading-relaxed">
+                    Once you settle orders via Razorpay, UPI, or Debit/Credit card during checkout or from your Orders page, transaction receipts and gateway references will appear here automatically.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
