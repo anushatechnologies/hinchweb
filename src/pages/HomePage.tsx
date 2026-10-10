@@ -7,10 +7,7 @@ import { promotionApi } from '../api/promotionApi';
 import type { Product, Category, Banner, ActiveVideoBanner } from '../types';
 import { ProductCard } from '../components/product/ProductCard';
 import { CategoryRibbon } from '../components/layout/CategoryRibbon';
-import { useRFQModalStore } from '../store/useRFQModalStore';
 import {
-  FileText,
-  Sparkles,
   ArrowRight,
   Flame,
   ChevronRight,
@@ -71,7 +68,6 @@ export const HomePage: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [activeSlide, setActiveSlide] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  const { openRFQModal } = useRFQModalStore();
 
   useEffect(() => {
     setIsLoading(true);
@@ -111,85 +107,37 @@ export const HomePage: React.FC = () => {
       {/* 2. HERO PROMOTIONAL BANNER (Active Video Banner or Banner Slider) */}
       <section className="max-w-[1720px] w-full mx-auto px-4 sm:px-8 lg:px-12">
         {isLoading && !videoBanner && banners.length === 0 ? (
-          <div className="bg-white rounded-3xl border border-industrial-200 shadow-card overflow-hidden">
-            <div className="relative bg-gradient-to-r from-industrial-950 via-slate-900 to-industrial-950 p-8 sm:p-12 min-h-[340px] sm:min-h-[400px] flex flex-col justify-between animate-pulse">
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-                <div className="lg:col-span-7 space-y-4">
-                  <div className="h-6 bg-brand-500/30 rounded-full w-40" />
-                  <div className="h-10 bg-white/20 rounded-xl w-3/4" />
-                  <div className="h-6 bg-white/15 rounded-lg w-1/2" />
-                  <div className="h-12 bg-white/20 rounded-xl w-44" />
-                </div>
-                <div className="lg:col-span-5 flex items-center justify-center">
-                  <div className="w-full max-w-md h-56 rounded-2xl bg-white/10" />
-                </div>
-              </div>
-            </div>
-          </div>
+          <div className="rounded-3xl border border-industrial-200 bg-industrial-100 overflow-hidden shadow-card aspect-[16/7] sm:aspect-[21/8] lg:aspect-[25/8] min-h-[200px] sm:min-h-[280px] max-h-[440px] animate-pulse" />
         ) : videoBanner ? (
-          <div className="relative rounded-3xl overflow-hidden border border-industrial-800 bg-industrial-950 shadow-2xl min-h-[380px] sm:min-h-[440px] lg:min-h-[480px] flex items-center group">
-            {/* Background Video */}
-            <video
-              ref={videoRef}
-              src={videoBanner.videoUrl}
-              poster={videoBanner.posterUrl}
-              autoPlay
-              muted={isVideoMuted}
-              loop
-              playsInline
-              className="absolute inset-0 w-full h-full object-cover object-center"
-              onPlay={() => setIsPlaying(true)}
-              onPause={() => setIsPlaying(false)}
-            />
+          <div className="relative rounded-3xl overflow-hidden border border-industrial-200 shadow-card bg-industrial-100 aspect-[16/7] sm:aspect-[21/8] lg:aspect-[25/8] min-h-[200px] sm:min-h-[280px] max-h-[440px] flex items-center group">
+            {/* Clickable Banner Link */}
+            <Link
+              to={videoBanner.targetScreen || '/catalog'}
+              className="absolute inset-0 w-full h-full block cursor-pointer z-10"
+              aria-label={videoBanner.title || 'Promotional Banner'}
+            >
+              {/* Pure Video - Clean edge-to-edge, no black overlays, no text */}
+              <video
+                ref={videoRef}
+                src={videoBanner.videoUrl}
+                poster={videoBanner.posterUrl}
+                autoPlay
+                muted={isVideoMuted}
+                loop
+                playsInline
+                className="w-full h-full object-cover object-center block"
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
+              />
+            </Link>
 
-            {/* Gradient Overlays for High-Contrast Readability */}
-            <div className="absolute inset-0 bg-gradient-to-t sm:bg-gradient-to-r from-industrial-950/95 via-industrial-950/75 to-industrial-950/30 z-10" />
-            <div className="absolute inset-0 bg-black/25 z-10 pointer-events-none" />
-
-            {/* Content Layer */}
-            <div className="relative z-20 w-full p-6 sm:p-10 lg:p-14 max-w-3xl space-y-4 sm:space-y-6">
-              {videoBanner.badge && (
-                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-brand-500 text-white text-xs sm:text-sm font-black uppercase tracking-wider shadow-lg backdrop-blur-md border border-brand-400/30">
-                  <Sparkles className="w-4 h-4 text-brand-200" />
-                  <span>{videoBanner.badge}</span>
-                </div>
-              )}
-
-              <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight uppercase drop-shadow-xl leading-tight">
-                {videoBanner.title}
-              </h1>
-
-              {videoBanner.subtitle && (
-                <p className="text-sm sm:text-base lg:text-lg text-slate-200 font-medium leading-relaxed drop-shadow-md max-w-2xl">
-                  {videoBanner.subtitle}
-                </p>
-              )}
-
-              <div className="flex flex-wrap items-center gap-3 pt-2">
-                <Link
-                  to={videoBanner.targetScreen || '/catalog'}
-                  className="inline-flex items-center gap-2.5 px-6 sm:px-8 py-3.5 sm:py-4 bg-brand-500 hover:bg-brand-600 text-white font-black text-xs sm:text-sm tracking-wider uppercase rounded-xl shadow-2xl transition-all active:scale-95 group/btn"
-                >
-                  <span>{videoBanner.ctaText || 'EXPLORE CATALOG'}</span>
-                  <ArrowRight className="w-4 h-4 group-hover/btn:translate-x-1 transition-transform" />
-                </Link>
-
-                <button
-                  type="button"
-                  onClick={() => openRFQModal()}
-                  className="inline-flex items-center gap-2 px-5 py-3.5 sm:py-4 bg-white/10 hover:bg-white/20 text-white font-bold text-xs sm:text-sm tracking-wide rounded-xl backdrop-blur-md border border-white/20 transition-all cursor-pointer"
-                >
-                  <FileText className="w-4 h-4 text-brand-400" />
-                  <span>Request Quick Quote</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Floating Media Controls */}
+            {/* Subtle Floating Media Controls */}
             <div className="absolute right-4 bottom-4 sm:right-6 sm:bottom-6 z-20 flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => {
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
                   if (videoRef.current) {
                     if (isPlaying) {
                       videoRef.current.pause();
@@ -200,7 +148,7 @@ export const HomePage: React.FC = () => {
                     }
                   }
                 }}
-                className="w-10 h-10 rounded-full bg-black/60 hover:bg-black/80 text-white backdrop-blur-md border border-white/20 flex items-center justify-center transition-all cursor-pointer shadow-lg"
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/50 hover:bg-black/75 text-white backdrop-blur-md border border-white/20 flex items-center justify-center transition-all cursor-pointer shadow-md"
                 title={isPlaying ? 'Pause video' : 'Play video'}
                 aria-label={isPlaying ? 'Pause video' : 'Play video'}
               >
@@ -209,13 +157,15 @@ export const HomePage: React.FC = () => {
 
               <button
                 type="button"
-                onClick={() => {
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
                   if (videoRef.current) {
                     videoRef.current.muted = !isVideoMuted;
                     setIsVideoMuted(!isVideoMuted);
                   }
                 }}
-                className="w-10 h-10 rounded-full bg-black/60 hover:bg-black/80 text-white backdrop-blur-md border border-white/20 flex items-center justify-center transition-all cursor-pointer shadow-lg"
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/50 hover:bg-black/75 text-white backdrop-blur-md border border-white/20 flex items-center justify-center transition-all cursor-pointer shadow-md"
                 title={isVideoMuted ? 'Unmute video' : 'Mute video'}
                 aria-label={isVideoMuted ? 'Unmute video' : 'Mute video'}
               >
@@ -223,6 +173,7 @@ export const HomePage: React.FC = () => {
               </button>
             </div>
           </div>
+
         ) : banners.length > 0 ? (
           <div className="bg-white rounded-3xl border border-industrial-200 shadow-card overflow-hidden">
             <div className="relative bg-gradient-to-r from-industrial-950 via-slate-900 to-industrial-950 text-white p-6 sm:p-10 lg:p-12 transition-all duration-700 min-h-[300px] sm:min-h-[360px] flex flex-col justify-between overflow-hidden">
