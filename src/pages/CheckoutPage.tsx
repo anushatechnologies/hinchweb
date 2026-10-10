@@ -12,15 +12,13 @@ import { formatINR } from '../utils/formatters';
 import confetti from 'canvas-confetti';
 import {
   ShieldCheck,
-  CreditCard,
   CheckCircle2,
   Plus,
-  QrCode,
-  Landmark,
   Lock,
   AlertCircle,
   MapPin,
   Loader2,
+  Banknote,
 } from 'lucide-react';
 
 export const CheckoutPage: React.FC = () => {
@@ -65,7 +63,7 @@ export const CheckoutPage: React.FC = () => {
   const [billingAddressId, setBillingAddressId] = useState<string>(
     addresses[2]?.id || addresses[0]?.id || ''
   );
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('bank_transfer');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('COD');
   const [isProcessing, setIsProcessing] = useState(false);
 
   // New address modal state
@@ -212,7 +210,7 @@ export const CheckoutPage: React.FC = () => {
       .previewCheckout({
         addressId: addrId,
         deliverySlot: 'Morning (08:00 - 12:00)',
-        requiresCraneUnloading: true,
+        requiresCraneUnloading: false,
       })
       .then((preview) => {
         if (preview && (preview.grandTotal || preview.subtotal)) {
@@ -223,6 +221,42 @@ export const CheckoutPage: React.FC = () => {
         console.warn('Backend previewCheckout notice:', err);
       });
   }, [selectedDelivery]);
+
+  // Unified breakdown and total calculations for 100% mathematical accuracy
+  const displayTaxableValue = useMemo(() => {
+    if (checkoutPreview?.subtotal && Math.abs(checkoutPreview.subtotal - taxableValue) < 2) {
+      return checkoutPreview.subtotal;
+    }
+    return taxableValue;
+  }, [checkoutPreview, taxableValue]);
+
+  const displayTotalGst = useMemo(() => {
+    const previewGst = checkoutPreview?.totalGst ?? checkoutPreview?.gstTotal;
+    if (previewGst !== undefined && Math.abs(previewGst - totalGst) < 2) {
+      return previewGst;
+    }
+    return totalGst;
+  }, [checkoutPreview, totalGst]);
+
+  const displayFreight = useMemo(() => {
+    const previewFreight =
+      checkoutPreview?.freight ??
+      checkoutPreview?.freightCharge ??
+      checkoutPreview?.deliveryTotal ??
+      checkoutPreview?.shippingTotal;
+    if (previewFreight !== undefined) {
+      return previewFreight;
+    }
+    return estimatedFreight;
+  }, [checkoutPreview, estimatedFreight]);
+
+  const displayGrandTotal = useMemo(() => {
+    const calculatedSum = displayTaxableValue + displayTotalGst + displayFreight;
+    if (checkoutPreview?.grandTotal && Math.abs(checkoutPreview.grandTotal - calculatedSum) <= 1) {
+      return checkoutPreview.grandTotal;
+    }
+    return calculatedSum;
+  }, [checkoutPreview, displayTaxableValue, displayTotalGst, displayFreight]);
 
   const handlePlaceOrder = async () => {
     if (!selectedDelivery && addresses.length === 0) {
@@ -245,11 +279,11 @@ export const CheckoutPage: React.FC = () => {
 
       const newOrder = await orderApi.placeOrder({
         addressId,
-        paymentMethod: (paymentMethod || 'RAZORPAY').toUpperCase(),
+        paymentMethod: (paymentMethod || 'COD').toUpperCase(),
         deliverySlot: 'Morning (08:00 - 12:00)',
-        deliveryInstructions: 'Deliver to project site with heavy vehicle trailer access.',
+        deliveryInstructions: 'Deliver to project site with vehicle access.',
         poNumber: `PO-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
-        requiresCraneUnloading: true,
+        requiresCraneUnloading: false,
       });
 
       // Online payment methods (Razorpay, UPI, Card)
@@ -329,7 +363,7 @@ export const CheckoutPage: React.FC = () => {
 
       showToast(
         'success',
-        `Purchase Order #${newOrder.orderNumber} confirmed! E-Way bill & MTC allocated.`,
+        `Purchase Order #${newOrder.orderNumber} confirmed with Cash on Delivery (COD)!`,
         'Order Placed Successfully'
       );
 
@@ -524,97 +558,37 @@ export const CheckoutPage: React.FC = () => {
               <div>
                 <h3 className="font-bold text-sm text-industrial-950">Payment Method</h3>
                 <p className="text-[11px] text-industrial-500">
-                  Select payment method for automated GST tax invoice dispatch
+                  Select payment method for material procurement and site delivery
                 </p>
               </div>
             </div>
 
             <div className="space-y-3">
-
-              {/* Option 2: Corporate Netbanking & RTGS / NEFT */}
+              {/* Option: Cash on Delivery (COD) */}
               <div
-                onClick={() => setPaymentMethod('bank_transfer')}
-                className={`p-4 rounded-2xl border cursor-pointer transition-all ${
-                  paymentMethod === 'bank_transfer'
-                    ? 'border-brand-500 bg-brand-50/60 ring-2 ring-brand-500/20'
-                    : 'border-industrial-200 hover:border-industrial-300 bg-white'
-                }`}
+                onClick={() => setPaymentMethod('COD')}
+                className="p-4 rounded-2xl border cursor-pointer transition-all border-brand-500 bg-brand-50/60 ring-2 ring-brand-500/20"
               >
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-industrial-800 text-white flex items-center justify-center">
-                      <Landmark className="w-5 h-5" />
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                      <Banknote className="w-5 h-5" />
                     </div>
                     <div>
-                      <span className="font-bold text-xs text-industrial-950">
-                        Corporate Netbanking & RTGS / NEFT (Dedicated Virtual Account)
-                      </span>
-                      <p className="text-[11px] text-industrial-500">
-                        Generates unique HDFC / ICICI Virtual Escrow Account for your company
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-xs text-industrial-950">
+                          Cash on Delivery (COD)
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-extrabold uppercase">
+                          Standard
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-industrial-600 mt-0.5">
+                        Pay with Cash / UPI upon material delivery & physical inspection at project site
                       </p>
                     </div>
                   </div>
-                  {paymentMethod === 'bank_transfer' && (
-                    <CheckCircle2 className="w-5 h-5 text-brand-600" />
-                  )}
-                </div>
-              </div>
-
-              {/* Option 3: UPI / QR Code Instant Pay */}
-              <div
-                onClick={() => setPaymentMethod('upi')}
-                className={`p-4 rounded-2xl border cursor-pointer transition-all ${
-                  paymentMethod === 'upi'
-                    ? 'border-brand-500 bg-brand-50/60 ring-2 ring-brand-500/20'
-                    : 'border-industrial-200 hover:border-industrial-300 bg-white'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-industrial-800 text-white flex items-center justify-center">
-                      <QrCode className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <span className="font-bold text-xs text-industrial-950">
-                        UPI QR Code (Google Pay, PhonePe, Paytm, BHIM)
-                      </span>
-                      <p className="text-[11px] text-industrial-500">
-                        Instant payment confirmation with GST invoice generation
-                      </p>
-                    </div>
-                  </div>
-                  {paymentMethod === 'upi' && (
-                    <CheckCircle2 className="w-5 h-5 text-brand-600" />
-                  )}
-                </div>
-              </div>
-
-              {/* Option 4: Business Credit / Debit Cards */}
-              <div
-                onClick={() => setPaymentMethod('card')}
-                className={`p-4 rounded-2xl border cursor-pointer transition-all ${
-                  paymentMethod === 'card'
-                    ? 'border-brand-500 bg-brand-50/60 ring-2 ring-brand-500/20'
-                    : 'border-industrial-200 hover:border-industrial-300 bg-white'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-industrial-800 text-white flex items-center justify-center">
-                      <CreditCard className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <span className="font-bold text-xs text-industrial-950">
-                        Corporate / Business Credit Cards (Visa, Mastercard, RuPay Corporate)
-                      </span>
-                      <p className="text-[11px] text-industrial-500">
-                        Secure 256-bit encrypted checkout with commercial card rewards
-                      </p>
-                    </div>
-                  </div>
-                  {paymentMethod === 'card' && (
-                    <CheckCircle2 className="w-5 h-5 text-brand-600" />
-                  )}
+                  <CheckCircle2 className="w-5 h-5 text-brand-600 shrink-0" />
                 </div>
               </div>
             </div>
@@ -660,25 +634,25 @@ export const CheckoutPage: React.FC = () => {
               <div className="flex justify-between text-industrial-600">
                 <span>Taxable Value:</span>
                 <span className="font-semibold text-industrial-900">
-                  {formatINR(checkoutPreview?.subtotal ?? taxableValue)}
+                  {formatINR(displayTaxableValue)}
                 </span>
               </div>
               <div className="flex justify-between text-industrial-600">
                 <span>Total GST (100% ITC Eligible):</span>
                 <span className="font-semibold text-industrial-900">
-                  {formatINR(checkoutPreview?.totalGst ?? checkoutPreview?.gstTotal ?? totalGst)}
+                  {formatINR(displayTotalGst)}
                 </span>
               </div>
               <div className="flex justify-between text-industrial-600">
                 <span>Site Transit Freight:</span>
                 <span className="font-semibold text-emerald-700">
-                  {formatINR(checkoutPreview?.freight ?? checkoutPreview?.freightCharge ?? estimatedFreight)}
+                  {formatINR(displayFreight)}
                 </span>
               </div>
               <div className="flex justify-between text-base font-bold text-industrial-950 pt-2 border-t border-industrial-200">
                 <span>Total Payable:</span>
                 <span className="text-brand-600 font-mono text-xl">
-                  {formatINR(checkoutPreview?.grandTotal ?? grandTotal)}
+                  {formatINR(displayGrandTotal)}
                 </span>
               </div>
             </div>
@@ -708,14 +682,14 @@ export const CheckoutPage: React.FC = () => {
               type="button"
               onClick={handlePlaceOrder}
               disabled={isProcessing}
-              className="w-full py-4 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white rounded-xl font-bold text-sm shadow-xl shadow-brand-600/25 flex items-center justify-center gap-2 transition-all active:scale-98"
+              className="w-full py-4 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white rounded-xl font-bold text-sm shadow-xl shadow-brand-600/25 flex items-center justify-center gap-2 transition-all active:scale-98 cursor-pointer"
             >
               {isProcessing ? (
                 <>Processing Purchase Order...</>
               ) : (
                 <>
                   <Lock className="w-4 h-4" />
-                  <span>Authorize & Place Order ({formatINR(grandTotal)})</span>
+                  <span>Authorize & Place Order ({formatINR(displayGrandTotal)})</span>
                 </>
               )}
             </button>

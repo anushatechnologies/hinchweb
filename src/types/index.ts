@@ -709,6 +709,8 @@ export interface CheckoutPreviewInput {
 export type PreviewCheckoutInput = CheckoutPreviewInput;
 
 export type PaymentMethod =
+  | 'COD'
+  | 'cod'
   | 'RAZORPAY'
   | 'UPI'
   | 'CARD'
