@@ -127,7 +127,6 @@ export const Footer: React.FC = () => {
           <h4 className="text-white font-bold uppercase tracking-wider text-xs">Enterprise Solutions</h4>
           <ul className="space-y-2 text-industrial-400">
             <li><Link to="/rfq" className="hover:text-white transition-colors">Broadcast Bulk RFQ</Link></li>
-            <li><Link to="/account" className="hover:text-white transition-colors">Apply for 45-Day PayLater</Link></li>
             <li><Link to="/orders" className="hover:text-white transition-colors">Live Consignment Tracking</Link></li>
             <li><Link to="/invoices" className="hover:text-white transition-colors">GST Tax Invoice Portal</Link></li>
             <li><Link to="/catalog?deals=true" className="hover:text-white transition-colors">Wholesale Tier Deals</Link></li>
