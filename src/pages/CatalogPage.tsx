@@ -253,13 +253,19 @@ export const CatalogPage: React.FC = () => {
     }
 
     // Subcategory filter
-    if (selectedSubcategories.length > 0) {
+    if (selectedSubcategories.length > 0 || subcategoryIdParam) {
       result = result.filter((p) => {
-        const pSub = (p.subcategoryName || p.subcategory || '').toLowerCase().trim();
-        return selectedSubcategories.some((s) => {
-          const target = s.toLowerCase().trim();
-          return pSub === target || pSub.includes(target) || target.includes(pSub);
-        });
+        if (subcategoryIdParam && p.subcategoryId && Number(p.subcategoryId) === Number(subcategoryIdParam)) {
+          return true;
+        }
+        if (selectedSubcategories.length > 0) {
+          const pSub = (p.subcategoryName || p.subcategory || '').toLowerCase().trim();
+          return selectedSubcategories.some((s) => {
+            const target = s.toLowerCase().trim();
+            return pSub === target || pSub.includes(target) || target.includes(pSub);
+          });
+        }
+        return !subcategoryIdParam;
       });
     }
 

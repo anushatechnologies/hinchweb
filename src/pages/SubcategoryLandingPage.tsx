@@ -73,24 +73,30 @@ export const SubcategoryLandingPage: React.FC = () => {
           setCategory(currentCat);
         }
 
-        // 2. Fetch products for this subcategory & category
-        const { products: fetchedProds } = await productApi.getProducts({
-          category: resolvedCatName || undefined,
-          categoryId: currentCat?.categoryId,
-          subcategory: resolvedSubName || undefined,
-          limit: 100,
-        });
+        // 2. Resolve target Subcategory info and subcategoryId FIRST
+        const normalizedSubSlug = (subcategorySlug || '').toLowerCase().trim();
+        const normalizedSubName = (resolvedSubName || '').toLowerCase().trim();
+        const cleanSubSlug = normalizedSubSlug.replace(/[^a-z0-9]/g, '');
+        const cleanSubName = normalizedSubName.replace(/[^a-z0-9]/g, '');
 
-        // 3. Match Subcategory info
         let currentSub: Subcategory | null = null;
-        if (currentCat?.subcategories) {
+        if (currentCat?.subcategories && currentCat.subcategories.length > 0) {
           currentSub =
-            currentCat.subcategories.find(
-              (s) =>
-                s.name.toLowerCase() === resolvedSubName.toLowerCase() ||
-                s.slug.toLowerCase() === (subcategorySlug || '').toLowerCase() ||
-                s.name.toLowerCase().replace(/\s+/g, '-') === (subcategorySlug || '').toLowerCase()
-            ) || null;
+            currentCat.subcategories.find((s) => {
+              const sSlug = (s.slug || '').toLowerCase().trim();
+              const sName = (s.name || '').toLowerCase().trim();
+              const cleanSSlug = sSlug.replace(/[^a-z0-9]/g, '');
+              const cleanSName = sName.replace(/[^a-z0-9]/g, '');
+
+              return (
+                (normalizedSubSlug && sSlug === normalizedSubSlug) ||
+                (normalizedSubName && sName === normalizedSubName) ||
+                (cleanSubSlug && cleanSSlug === cleanSubSlug) ||
+                (cleanSubSlug && cleanSName === cleanSubSlug) ||
+                (cleanSubName && cleanSName === cleanSubName) ||
+                (cleanSubName && cleanSSlug === cleanSubName)
+              );
+            }) || null;
         }
 
         if (!currentSub && subcategorySlug) {
@@ -121,58 +127,59 @@ export const SubcategoryLandingPage: React.FC = () => {
             slug: resolvedSubName.toLowerCase().replace(/\s+/g, '-'),
             active: true,
             sortOrder: 1,
-            productCount: fetchedProds.length,
+            productCount: 0,
           };
         }
         setSubcategory(currentSub);
 
-        // 4. Fetch Brands strictly from Backend (Flow 2: GET /api/brands?subcategoryId=... or /api/brands)
-        let backendBrands: Brand[] = [];
-        try {
-          if (currentSub?.subcategoryId) {
-            backendBrands = await brandApi.getBrands({
-              subcategoryId: currentSub.subcategoryId,
-              active: true,
-            });
-          }
+        // 3. Fetch products using subcategoryId so backend returns only this subcategory's products
+        const targetSubId = currentSub?.subcategoryId && Number(currentSub.subcategoryId) > 0
+          ? Number(currentSub.subcategoryId)
+          : undefined;
 
-          if (backendBrands.length === 0 && currentCat?.categoryId) {
-            const catBrands = await brandApi.getBrands({
-              categoryId: currentCat.categoryId,
-              active: true,
-            });
-            backendBrands = catBrands.filter(
-              (b) =>
-                !b.subcategoryId ||
-                b.subcategoryId === currentSub?.subcategoryId ||
-                (currentSub?.name && b.subcategoryName?.toLowerCase() === currentSub.name.toLowerCase())
-            );
-          }
-
-          if (backendBrands.length === 0) {
-            const allBrands = await brandApi.getBrands({ active: true });
-            backendBrands = allBrands.filter(
-              (b) =>
-                (currentSub?.subcategoryId && b.subcategoryId === currentSub.subcategoryId) ||
-                (currentSub?.name && b.subcategoryName?.toLowerCase() === currentSub.name.toLowerCase()) ||
-                (currentCat?.categoryId && b.categoryId === currentCat.categoryId) ||
-                (currentCat?.name && b.categoryName?.toLowerCase() === currentCat.name.toLowerCase())
-            );
-          }
-        } catch (brandErr) {
-          console.warn('Could not fetch brands from backend /api/brands:', brandErr);
-        }
-
-        // Map backend brands into unique dictionary
-        const brandMap = new Map<string, Brand>();
-        backendBrands.forEach((b) => {
-          if (b.name && b.name.trim() !== '') {
-            brandMap.set(b.name.toLowerCase(), b);
-          }
+        const { products: fetchedProds } = await productApi.getProducts({
+          subcategoryId: targetSubId,
+          categoryId: currentCat?.categoryId,
+          category: resolvedCatName || undefined,
+          subcategory: currentSub?.name || resolvedSubName || undefined,
+          limit: 100,
         });
 
-        // Also add any verified brands present on the fetched backend products
-        fetchedProds.forEach((p) => {
+        // 4. Strict Subcategory Filtering - Ensure only products belonging to this subcategory are retained
+        const targetSubName = (currentSub?.name || resolvedSubName || '').toLowerCase().trim();
+        const cleanTargetSubName = targetSubName.replace(/[^a-z0-9]/g, '');
+        const cleanTargetSlug = (currentSub?.slug || subcategorySlug || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+        const relatedProds = fetchedProds.filter((p) => {
+          // If numeric subcategoryId matches
+          if (targetSubId && p.subcategoryId && Number(p.subcategoryId) === targetSubId) {
+            return true;
+          }
+          // If subcategory name matches
+          const pSubName = (p.subcategoryName || p.subcategory || '').toLowerCase().trim();
+          if (pSubName) {
+            const cleanPSub = pSubName.replace(/[^a-z0-9]/g, '');
+            if (cleanTargetSubName && cleanPSub === cleanTargetSubName) return true;
+            if (cleanTargetSlug && cleanPSub === cleanTargetSlug) return true;
+            if (cleanTargetSubName && (cleanPSub.includes(cleanTargetSubName) || cleanTargetSubName.includes(cleanPSub))) return true;
+          }
+          // Fallback if subcategory fields missing on product but queried directly with subcategoryId
+          if (targetSubId && (!p.subcategoryId || Number(p.subcategoryId) === targetSubId)) {
+            if (currentCat?.categoryId && p.categoryId && Number(p.categoryId) !== Number(currentCat.categoryId)) {
+              return false;
+            }
+            return true;
+          }
+          return false;
+        });
+
+        if (currentSub) {
+          currentSub.productCount = relatedProds.length;
+        }
+
+        // 5. Extract Brands strictly for the related products of this subcategory
+        const brandMap = new Map<string, Brand>();
+        relatedProds.forEach((p) => {
           const bName = (p.brandName || p.brand || '').trim();
           if (bName && !brandMap.has(bName.toLowerCase())) {
             brandMap.set(bName.toLowerCase(), {
@@ -180,14 +187,14 @@ export const SubcategoryLandingPage: React.FC = () => {
               brandId: p.brandId || 0,
               name: bName,
               slug: bName.toLowerCase().replace(/\s+/g, '-'),
-              productCount: fetchedProds.filter((prod) => (prod.brandName || prod.brand || '').toLowerCase() === bName.toLowerCase()).length,
+              productCount: relatedProds.filter((prod) => (prod.brandName || prod.brand || '').toLowerCase() === bName.toLowerCase()).length,
               active: true,
             });
           }
         });
 
         setBrands(Array.from(brandMap.values()));
-        setProducts(fetchedProds);
+        setProducts(relatedProds);
 
         // Fetch selected brand details if brand query filter is present
         if (selectedBrandParam) {
@@ -205,6 +212,7 @@ export const SubcategoryLandingPage: React.FC = () => {
       } finally {
         setIsLoading(false);
       }
+
     }
 
     loadData();
@@ -277,7 +285,7 @@ export const SubcategoryLandingPage: React.FC = () => {
   }, [products]);
 
   const hotNewReleases = useMemo(() => {
-    return products.slice(2, 10);
+    return products.length >= 4 ? products.slice(2, 10) : [];
   }, [products]);
 
   // Add to cart action
@@ -810,10 +818,36 @@ export const SubcategoryLandingPage: React.FC = () => {
             </div>
 
             {/* Products Grid Matching Screenshot 4 */}
-            {filteredProducts.length === 0 ? (
+            {products.length === 0 ? (
               <div className="bg-white rounded-3xl p-12 text-center border border-gray-200 space-y-4">
                 <div className="w-16 h-16 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center mx-auto text-2xl">
                   📦
+                </div>
+                <h3 className="text-lg font-black text-gray-900 font-outfit">
+                  No Direct Products Currently Listed in {displayName}
+                </h3>
+                <p className="text-xs text-gray-500 max-w-md mx-auto">
+                  Looking for verified wholesale materials for this subcategory? Post an RFQ to receive direct manufacturer quotes with mill test certificates.
+                </p>
+                <div className="flex items-center justify-center gap-3 pt-2">
+                  <Link
+                    to={`/category/${encodeURIComponent((category?.slug || categoryDisplayName).toLowerCase().replace(/\s+/g, '-'))}`}
+                    className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl font-bold text-xs transition-colors"
+                  >
+                    Back to {categoryDisplayName}
+                  </Link>
+                  <Link
+                    to="/rfq"
+                    className="px-5 py-2.5 bg-[#d9232d] hover:bg-[#b91c1c] text-white rounded-xl font-bold text-xs shadow-md transition-colors"
+                  >
+                    Submit RFQ
+                  </Link>
+                </div>
+              </div>
+            ) : filteredProducts.length === 0 ? (
+              <div className="bg-white rounded-3xl p-12 text-center border border-gray-200 space-y-4">
+                <div className="w-16 h-16 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center mx-auto text-2xl">
+                  🔍
                 </div>
                 <h3 className="text-lg font-black text-gray-900 font-outfit">
                   No Direct Matches Found with Active Filters
