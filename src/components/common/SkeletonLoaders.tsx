@@ -61,22 +61,7 @@ export const SubcategoryPageSkeleton: React.FC<{ categoryName?: string }> = () =
         <div className="h-3.5 bg-gray-300 rounded w-28" />
       </div>
 
-      {/* 2. Hero Header Card Skeleton */}
-      <div className="bg-white rounded-2xl p-5 sm:p-6 border border-gray-200 shadow-2xs space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="h-8 bg-gray-200 rounded-lg w-52 sm:w-64" />
-            <div className="h-7 bg-gray-200 rounded-full w-24" />
-          </div>
-          <div className="h-9 bg-amber-100/70 border border-amber-200 rounded-full w-72 sm:w-80" />
-        </div>
-        <div className="space-y-2 pt-2 border-t border-gray-100">
-          <div className="h-3 bg-gray-200 rounded w-full" />
-          <div className="h-3 bg-gray-200 rounded w-5/6" />
-          <div className="h-3 bg-gray-200 rounded w-3/4" />
-        </div>
-      </div>
-      {/* 4. Bestsellers Carousel Skeleton (Blue tint) */}
+      {/* 2. Bestsellers Carousel Skeleton (Blue tint) */}
       <div className="bg-blue-50/70 rounded-3xl p-5 sm:p-6 border border-blue-100 shadow-2xs space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">

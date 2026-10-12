@@ -8,7 +8,6 @@ import type { Category, Subcategory, Brand, Product } from '../types';
 import { CategoryRibbon } from '../components/layout/CategoryRibbon';
 import { SubcategoryPageSkeleton } from '../components/common/SkeletonLoaders';
 import { useCartStore } from '../store/useCartStore';
-import { useLocationStore } from '../store/useLocationStore';
 import { useToastStore } from '../store/useToastStore';
 import { formatINR } from '../utils/formatters';
 import {
@@ -18,7 +17,6 @@ import {
   ShoppingCart,
   Star,
   Truck,
-  Play,
   MapPin,
   SlidersHorizontal,
   X,
@@ -32,7 +30,6 @@ export const SubcategoryLandingPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const { addItem } = useCartStore();
-  const { pincode, openPincodeModal } = useLocationStore();
   const { showToast } = useToastStore();
 
   // Resolved Category & Subcategory Names
@@ -58,7 +55,6 @@ export const SubcategoryLandingPage: React.FC = () => {
   const [brandSearchQuery, setBrandSearchQuery] = useState('');
   const [selectedPriceRanges, setSelectedPriceRanges] = useState<string[]>([]);
   const [fastDeliveryOnly, setFastDeliveryOnly] = useState(false);
-  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
 
   useEffect(() => {
@@ -334,7 +330,7 @@ export const SubcategoryLandingPage: React.FC = () => {
       <CategoryRibbon activeName={categoryDisplayName} />
 
       <div className="max-w-[1720px] w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-6">
-        {/* 1. Breadcrumb (Screenshot 1) */}
+        {/* 1. Breadcrumb */}
         <nav aria-label="Breadcrumb" className="flex items-center flex-wrap gap-1.5 text-xs text-gray-500 font-medium">
           <Link to="/" className="hover:text-[#d9232d] transition-colors">
             Home
@@ -347,77 +343,10 @@ export const SubcategoryLandingPage: React.FC = () => {
             {categoryDisplayName}
           </Link>
           <ChevronRight className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-          <span className="font-bold text-gray-900 truncate">{displayName}</span>
+          <h1 className="font-bold text-gray-900 truncate inline text-xs">{displayName}</h1>
         </nav>
 
-        {/* 2. Subcategory Header Hero with 24-hr Delivery Notice & Video (Screenshot 1) */}
-        <div className="bg-white rounded-2xl p-5 sm:p-6 border border-gray-200/80 shadow-2xs space-y-4">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            {/* Title & Video Icon */}
-            <div className="flex items-center gap-4">
-              <h1 className="text-2xl sm:text-3xl font-black text-gray-900 font-outfit tracking-tight">
-                {displayName}
-              </h1>
-
-              <button
-                type="button"
-                onClick={() => setIsVideoModalOpen(true)}
-                className="flex items-center gap-1.5 text-xs font-bold text-gray-600 hover:text-[#d9232d] transition-colors border border-gray-200 px-3 py-1.5 rounded-full hover:border-red-300 cursor-pointer shadow-2xs bg-gray-50"
-              >
-                <span>Videos:</span>
-                <div className="w-4 h-4 rounded-sm bg-red-600 flex items-center justify-center text-white">
-                  <Play className="w-2.5 h-2.5 fill-current" />
-                </div>
-              </button>
-            </div>
-
-            {/* Location 24-hour Delivery Pill Banner (Screenshot 1) */}
-            <button
-              type="button"
-              onClick={openPincodeModal}
-              className="inline-flex items-center gap-2 bg-[#fef3c7]/60 hover:bg-[#fef3c7] border border-amber-300/80 px-4 py-2 rounded-full text-xs font-bold text-amber-950 transition-all cursor-pointer shadow-2xs self-start md:self-auto"
-            >
-              <div className="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center text-[10px]">
-                📦
-              </div>
-              <span>
-                Allow location access to explore <strong>24 hours delivery</strong> products{' '}
-                {pincode ? `(${pincode})` : ''}
-              </span>
-              <span className="text-red-600 font-black uppercase text-[11px] ml-1 hover:underline flex items-center gap-0.5">
-                UPDATE <ChevronRight className="w-3.5 h-3.5" />
-              </span>
-            </button>
-          </div>
-
-          {/* Informative SEO Paragraph highlighting top brands with clickable links */}
-          <div className="text-xs text-gray-600 leading-relaxed space-y-2 border-t border-gray-100 pt-3">
-            <p>
-              Are you looking for verified <strong>{displayName.toLowerCase()}</strong> for your commercial construction, industrial setup, or fabrication project? Finding certified materials with tested load ratings and standard compliance is essential to ensure site safety, efficiency, and longevity.
-            </p>
-            {brands.length > 0 && (
-              <p>
-                You can ease your procurement by exploring trusted brands available on HinchMart like{' '}
-                {brands.slice(0, 8).map((b, idx) => (
-                  <span key={b.id || idx}>
-                    <button
-                      type="button"
-                      onClick={() => handleToggleBrand(b.name)}
-                      className="font-bold text-[#d9232d] hover:underline cursor-pointer inline"
-                    >
-                      {b.name}
-                    </button>
-                    {idx < Math.min(brands.length, 8) - 1 ? ', ' : ''}
-                  </span>
-                ))}
-                , and many more. All verified supplies are ready for instant dispatch at factory wholesale prices!
-              </p>
-            )}
-          </div>
-        </div>
-
-
-        {/* 4. BESTSELLERS SECTION (Soft Lavender / Blue Tinted Container - Screenshot 2) */}
+        {/* 2. BESTSELLERS SECTION (Soft Lavender / Blue Tinted Container) */}
 
         {bestsellers.length > 0 && (
           <section className="bg-gradient-to-r from-blue-50/80 via-indigo-50/40 to-blue-50/80 rounded-3xl p-5 sm:p-6 border border-blue-100 shadow-2xs space-y-4">
@@ -1012,31 +941,7 @@ export const SubcategoryLandingPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Video Demonstration Modal */}
-      {isVideoModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 space-y-4 shadow-2xl relative">
-            <button
-              type="button"
-              onClick={() => setIsVideoModalOpen(false)}
-              className="absolute right-4 top-4 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-700 cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-            </button>
-            <h3 className="text-lg font-black text-gray-900 font-outfit">
-              {displayName} Technical Demonstration & Inspection Guide
-            </h3>
-            <div className="aspect-video bg-gray-900 rounded-2xl overflow-hidden flex flex-col items-center justify-center text-white p-6 space-y-3">
-              <div className="w-16 h-16 rounded-full bg-[#d9232d] flex items-center justify-center text-white text-2xl shadow-xl shadow-red-600/40">
-                <Play className="w-8 h-8 fill-current ml-1" />
-              </div>
-              <p className="text-xs text-gray-300 max-w-sm text-center">
-                Quality testing, chemical composition inspection, and batch verification video stream for {displayName}.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {/* Mobile Filters Slide-Over Drawer */}
       {isMobileFilterOpen && (
