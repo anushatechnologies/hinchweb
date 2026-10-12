@@ -176,7 +176,7 @@ export const CatalogPage: React.FC = () => {
 
     // If we have an active category context, prioritize its subcategories
     if (activeCategory && activeCategory.subcategories && activeCategory.subcategories.length > 0) {
-      activeCategory.subcategories.forEach((sub) => {
+      activeCategory.subcategories.filter((s) => s.active !== false).forEach((sub) => {
         const prodCount = countInProducts(sub.name, sub.subcategoryId);
         subcats.push({
           name: sub.name,

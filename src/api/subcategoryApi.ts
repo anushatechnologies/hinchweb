@@ -7,12 +7,13 @@ export const subcategoryApi = {
   async getSubcategories(params?: { categoryId?: number | string; active?: boolean }): Promise<Subcategory[]> {
     try {
       const res = await apiClient.get('/subcategories', { params });
+      let list: any[] = [];
       if (res.data?.success && Array.isArray(res.data?.data)) {
-        return res.data.data.map(mapBackendSubcategory);
+        list = res.data.data;
+      } else if (Array.isArray(res.data)) {
+        list = res.data;
       }
-      if (Array.isArray(res.data)) {
-        return res.data.map(mapBackendSubcategory);
-      }
+      return list.map(mapBackendSubcategory).filter((s: Subcategory) => s.active !== false);
     } catch (err) {
       console.warn('Backend GET /subcategories warning:', err);
     }

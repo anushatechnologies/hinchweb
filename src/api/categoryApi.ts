@@ -14,7 +14,7 @@ export function mapBackendSubcategory(raw: any): Subcategory {
     slug: raw.slug || (raw.name ? raw.name.toLowerCase().replace(/\s+/g, '-') : `subcategory-${id}`),
     imageUrl: raw.imageUrl || raw.image || '',
     image: raw.imageUrl || raw.image || '',
-    active: raw.active ?? true,
+    active: (raw.active !== false && raw.isActive !== false && raw.is_active !== false),
     sortOrder: raw.sortOrder ?? 1,
     productCount: Number(raw.productCount ?? raw.itemCount ?? 0),
     itemCount: Number(raw.productCount ?? raw.itemCount ?? 0),
@@ -39,7 +39,7 @@ export function mapBackendCategory(raw: any): Category {
     sortOrder: raw.sortOrder ?? 1,
     productCount: Number(raw.productCount ?? 0),
     subcategories: Array.isArray(raw.subcategories)
-      ? raw.subcategories.map(mapBackendSubcategory)
+      ? raw.subcategories.map(mapBackendSubcategory).filter((s: Subcategory) => s.active !== false)
       : [],
     createdAt: raw.createdAt,
   };
@@ -148,12 +148,13 @@ export const categoryApi = {
   async getSubcategories(params?: { categoryId?: number | string; active?: boolean }): Promise<Subcategory[]> {
     try {
       const res = await apiClient.get('/subcategories', { params });
+      let list: any[] = [];
       if (res.data?.success && Array.isArray(res.data?.data)) {
-        return res.data.data.map(mapBackendSubcategory);
+        list = res.data.data;
+      } else if (Array.isArray(res.data)) {
+        list = res.data;
       }
-      if (Array.isArray(res.data)) {
-        return res.data.map(mapBackendSubcategory);
-      }
+      return list.map(mapBackendSubcategory).filter((s: Subcategory) => s.active !== false);
     } catch (err) {
       console.warn('Backend GET /subcategories warning:', err);
     }

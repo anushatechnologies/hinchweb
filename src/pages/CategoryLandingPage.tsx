@@ -67,9 +67,9 @@ export const CategoryLandingPage: React.FC = () => {
           }),
         ]);
 
-        let allSubs: Subcategory[] = cat.subcategories || [];
+        let allSubs: Subcategory[] = (cat.subcategories || []).filter((s) => s.active !== false);
         if (subsRes.status === 'fulfilled' && subsRes.value.length > 0) {
-          allSubs = subsRes.value;
+          allSubs = subsRes.value.filter((s) => s.active !== false);
         }
 
         let catProducts: Product[] = [];
@@ -96,7 +96,7 @@ export const CategoryLandingPage: React.FC = () => {
           }
         });
 
-        setSubcategories(allSubs);
+        setSubcategories(allSubs.filter((s) => s.active !== false));
         setIsLoading(false);
       })
       .catch((err) => {
