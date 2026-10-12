@@ -17,7 +17,6 @@ import {
   ShoppingCart,
   Star,
   Truck,
-  MapPin,
   SlidersHorizontal,
   X,
 } from 'lucide-react';
@@ -879,64 +878,6 @@ export const SubcategoryLandingPage: React.FC = () => {
                 })}
               </div>
             )}
-
-            {/* 7. MOGLIX / HINCHMART INSIGHTS WIDGET (Screenshot 4) */}
-            <section className="bg-white rounded-2xl p-5 sm:p-6 border border-gray-200 space-y-4 shadow-2xs">
-              <div className="flex items-center gap-2 text-xs font-black text-[#d9232d] uppercase tracking-wider">
-                <MapPin className="w-4 h-4" />
-                <span>HinchMart Market Insights</span>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Infographic 1: Spec / Size preference */}
-                <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 space-y-2.5">
-                  <h4 className="text-xs font-extrabold text-gray-900">
-                    {displayName} purchase as per Specification / Grade
-                  </h4>
-                  <div className="space-y-2 text-xs">
-                    <div className="flex items-center justify-between text-[11px] font-bold text-gray-700">
-                      <span>Primary Standard Grade</span>
-                      <span className="text-[#d9232d]">62% Demand</span>
-                    </div>
-                    <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div className="w-[62%] h-full bg-[#d9232d] rounded-full" />
-                    </div>
-
-                    <div className="flex items-center justify-between text-[11px] font-bold text-gray-700 pt-1">
-                      <span>Commercial Grade</span>
-                      <span className="text-gray-600">38% Demand</span>
-                    </div>
-                    <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div className="w-[38%] h-full bg-gray-400 rounded-full" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Infographic 2: Bulk / Wholesale orders */}
-                <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 space-y-2.5">
-                  <h4 className="text-xs font-extrabold text-gray-900">
-                    {displayName} purchase as per Bulk MOQ Tiers
-                  </h4>
-                  <div className="space-y-2 text-xs">
-                    <div className="flex items-center justify-between text-[11px] font-bold text-gray-700">
-                      <span>Full Truckload & Site Delivery</span>
-                      <span className="text-[#0f766e]">74% Orders</span>
-                    </div>
-                    <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div className="w-[74%] h-full bg-[#0f766e] rounded-full" />
-                    </div>
-
-                    <div className="flex items-center justify-between text-[11px] font-bold text-gray-700 pt-1">
-                      <span>Retail Sample Pack</span>
-                      <span className="text-gray-600">26% Orders</span>
-                    </div>
-                    <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div className="w-[26%] h-full bg-gray-400 rounded-full" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
           </main>
         </div>
       </div>
