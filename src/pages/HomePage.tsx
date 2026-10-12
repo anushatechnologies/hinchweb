@@ -105,18 +105,18 @@ export const HomePage: React.FC = () => {
       <CategoryRibbon />
 
       {/* 2. HERO PROMOTIONAL BANNER (Active Video Banner or Banner Slider) */}
-      <section className="max-w-[1720px] w-full mx-auto px-4 sm:px-8 lg:px-12">
+      <section className="max-w-[1720px] w-full mx-auto px-3 sm:px-6 lg:px-12">
         {isLoading && !videoBanner && banners.length === 0 ? (
-          <div className="rounded-3xl border border-industrial-200 bg-industrial-100 overflow-hidden shadow-card aspect-[16/7] sm:aspect-[21/8] lg:aspect-[25/8] min-h-[200px] sm:min-h-[280px] max-h-[440px] animate-pulse" />
+          <div className="rounded-2xl sm:rounded-3xl border border-industrial-200 bg-industrial-100 overflow-hidden shadow-card aspect-[16/9] sm:aspect-[21/8] lg:aspect-[25/8] min-h-[170px] sm:min-h-[280px] max-h-[460px] animate-pulse" />
         ) : videoBanner ? (
-          <div className="relative rounded-3xl overflow-hidden border border-industrial-200 shadow-card bg-industrial-100 aspect-[16/7] sm:aspect-[21/8] lg:aspect-[25/8] min-h-[200px] sm:min-h-[280px] max-h-[440px] flex items-center group">
+          <div className="relative rounded-2xl sm:rounded-3xl overflow-hidden border border-industrial-200 shadow-card bg-industrial-100 aspect-[16/9] sm:aspect-[21/8] lg:aspect-[25/8] min-h-[170px] sm:min-h-[280px] max-h-[460px] flex items-center group">
             {/* Clickable Banner Link */}
             <Link
               to={videoBanner.targetScreen || '/catalog'}
               className="absolute inset-0 w-full h-full block cursor-pointer z-10"
               aria-label={videoBanner.title || 'Promotional Banner'}
             >
-              {/* Pure Video - Clean edge-to-edge, no black overlays, no text */}
+              {/* Pure Video - Clean edge-to-edge, perfectly proportioned, no black overlays, no text */}
               <video
                 ref={videoRef}
                 src={videoBanner.videoUrl}
@@ -132,7 +132,7 @@ export const HomePage: React.FC = () => {
             </Link>
 
             {/* Subtle Floating Media Controls */}
-            <div className="absolute right-4 bottom-4 sm:right-6 sm:bottom-6 z-20 flex items-center gap-2">
+            <div className="absolute right-2.5 bottom-2.5 sm:right-6 sm:bottom-6 z-20 flex items-center gap-1.5 sm:gap-2">
               <button
                 type="button"
                 onClick={(e) => {
@@ -148,11 +148,11 @@ export const HomePage: React.FC = () => {
                     }
                   }
                 }}
-                className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/50 hover:bg-black/75 text-white backdrop-blur-md border border-white/20 flex items-center justify-center transition-all cursor-pointer shadow-md"
+                className="w-7 h-7 sm:w-10 sm:h-10 rounded-full bg-black/50 hover:bg-black/75 text-white backdrop-blur-md border border-white/20 flex items-center justify-center transition-all cursor-pointer shadow-md"
                 title={isPlaying ? 'Pause video' : 'Play video'}
                 aria-label={isPlaying ? 'Pause video' : 'Play video'}
               >
-                {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+                {isPlaying ? <Pause className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 ml-0.5" />}
               </button>
 
               <button
@@ -165,11 +165,11 @@ export const HomePage: React.FC = () => {
                     setIsVideoMuted(!isVideoMuted);
                   }
                 }}
-                className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/50 hover:bg-black/75 text-white backdrop-blur-md border border-white/20 flex items-center justify-center transition-all cursor-pointer shadow-md"
+                className="w-7 h-7 sm:w-10 sm:h-10 rounded-full bg-black/50 hover:bg-black/75 text-white backdrop-blur-md border border-white/20 flex items-center justify-center transition-all cursor-pointer shadow-md"
                 title={isVideoMuted ? 'Unmute video' : 'Mute video'}
                 aria-label={isVideoMuted ? 'Unmute video' : 'Mute video'}
               >
-                {isVideoMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                {isVideoMuted ? <VolumeX className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Volume2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
               </button>
             </div>
           </div>
