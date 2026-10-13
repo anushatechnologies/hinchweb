@@ -93,6 +93,20 @@ apiClient.interceptors.response.use(
     const isAuthSync = requestUrl.includes('/auth/sync');
     const isLogout = requestUrl.includes('/auth/logout');
     const isCheckPhone = requestUrl.includes('/auth/check-phone');
+    const authHeader = (originalRequest?.headers?.Authorization as string) || '';
+    const isDummySession = authHeader.includes('dummy_') || authHeader.includes('dev_');
+
+    if (isDummySession) {
+      const respData = error.response?.data as any;
+      const normalizedError: ApiErrorResponse = {
+        message: respData?.message || error.message || 'Error occurred',
+        statusCode: status,
+        errors: respData?.errors,
+        error: respData?.error,
+        data: respData,
+      };
+      return Promise.reject(normalizedError);
+    }
 
     if (
       status === 401 &&

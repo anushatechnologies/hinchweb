@@ -17,6 +17,8 @@ export const ExpressLoginModal: React.FC<ExpressLoginModalProps> = ({
   const [step, setStep] = useState<'phone' | 'otp' | 'success'>('phone');
   const [timer, setTimer] = useState(30);
 
+  const isDummy = phone.replace(/\D/g, '').endsWith('6300286705');
+
   if (!isOpen) return null;
 
   const handlePhoneSubmit = (e: React.FormEvent) => {
@@ -24,6 +26,12 @@ export const ExpressLoginModal: React.FC<ExpressLoginModalProps> = ({
     if (phone.trim().length < 10) {
       alert('Please enter a valid 10-digit mobile number');
       return;
+    }
+    const clean = phone.replace(/\D/g, '');
+    if (clean.endsWith('6300286705')) {
+      setOtp(['9', '0', '1', '1', '6', '2']);
+    } else {
+      setOtp(['', '', '', '']);
     }
     setStep('otp');
     setTimer(30);
@@ -36,7 +44,7 @@ export const ExpressLoginModal: React.FC<ExpressLoginModalProps> = ({
     setOtp(newOtp);
 
     // Auto-focus next input
-    if (value && index < 3) {
+    if (value && index < otp.length - 1) {
       const nextInput = document.getElementById(`otp-input-${index + 1}`);
       if (nextInput) nextInput.focus();
     }
@@ -45,7 +53,12 @@ export const ExpressLoginModal: React.FC<ExpressLoginModalProps> = ({
   const handleOtpSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const enteredOtp = otp.join('');
-    if (enteredOtp.length !== 4) {
+    if (isDummy) {
+      if (enteredOtp !== '901162') {
+        alert('Invalid OTP. Please enter test OTP: 901162');
+        return;
+      }
+    } else if (enteredOtp.length !== 4) {
       alert('Please enter the complete 4-digit OTP');
       return;
     }
@@ -54,7 +67,7 @@ export const ExpressLoginModal: React.FC<ExpressLoginModalProps> = ({
     setTimeout(() => {
       if (onLoginSuccess) {
         onLoginSuccess({
-          name: 'Hyderabad Business User',
+          name: isDummy ? 'Demo Enterprise User' : 'Hyderabad Business User',
           phone: `+91 ${phone}`,
         });
       }
@@ -155,14 +168,15 @@ export const ExpressLoginModal: React.FC<ExpressLoginModalProps> = ({
             {step === 'otp' && (
               <div className="space-y-3 text-left animate-in fade-in">
                 <h3 className="text-2xl font-black text-gray-900 font-outfit">
-                  Enter 4-Digit OTP
+                  Enter {isDummy ? '6-Digit' : '4-Digit'} OTP
                 </h3>
                 <p className="text-xs text-gray-500 font-medium">
                   Sent to <span className="font-bold text-gray-900">+91 {phone}</span>
+                  {isDummy && <span className="block text-emerald-600 font-semibold mt-1">Dummy login mode: Use OTP 901162</span>}
                 </p>
 
                 <form onSubmit={handleOtpSubmit} className="space-y-4 pt-2">
-                  <div className="flex items-center gap-3 justify-between max-w-[260px]">
+                  <div className={`flex items-center gap-2 justify-between ${isDummy ? 'max-w-[320px]' : 'max-w-[260px]'}`}>
                     {otp.map((digit, idx) => (
                       <input
                         key={idx}

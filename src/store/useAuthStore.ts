@@ -118,6 +118,21 @@ export const useAuthStore = create<AuthState>((set, get) => {
         return;
       }
 
+      // Preserve dummy session without network rejection
+      if (token.startsWith('dummy_') || token.startsWith('dev_')) {
+        const cachedUser = tokenStorage.getUser();
+        if (cachedUser) {
+          set({
+            user: cachedUser,
+            accessToken: token,
+            isAuthenticated: true,
+            isInitializing: false,
+            error: null,
+          });
+          return;
+        }
+      }
+
       set({ isInitializing: true });
       try {
         const user = await authApi.getMe();
@@ -170,6 +185,21 @@ export const useAuthStore = create<AuthState>((set, get) => {
         set({ user: emptyUser, isAuthenticated: false, accessToken: null });
         return;
       }
+
+      if (token.startsWith('dummy_') || token.startsWith('dev_')) {
+        const cachedUser = tokenStorage.getUser();
+        if (cachedUser) {
+          set({
+            user: cachedUser,
+            accessToken: token,
+            isLoading: false,
+            isAuthenticated: true,
+            error: null,
+          });
+          return;
+        }
+      }
+
       set({ isLoading: true });
       try {
         const user = await authApi.getMe();

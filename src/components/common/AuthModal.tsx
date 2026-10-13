@@ -26,6 +26,15 @@ import {
   UserPlus,
 } from 'lucide-react';
 
+export const DUMMY_PHONE = '6300286705';
+export const DUMMY_OTP = '901162';
+
+export const isDummyPhone = (phoneStr: string) => {
+  if (!phoneStr) return false;
+  const digits = phoneStr.replace(/\D/g, '');
+  return digits.endsWith(DUMMY_PHONE);
+};
+
 export const AuthModal: React.FC = () => {
   const { isOpen, initialMode, initialPhone, closeAuthModal } = useAuthModalStore();
   const {
@@ -125,6 +134,14 @@ export const AuthModal: React.FC = () => {
 
     setIsSubmitting(true);
     try {
+      if (isDummyPhone(numericPhone)) {
+        setProfilePhone(formattedPhone);
+        setOtpStep('verify');
+        setOtpCode(DUMMY_OTP);
+        showToast('info', `Dummy Account: Enter OTP ${DUMMY_OTP} to log in.`, 'Dummy Login');
+        return;
+      }
+
       // Step 4 in flow: Check if phone number exists in backend
       try {
         const phoneCheck = await checkPhone(formattedPhone);
@@ -197,6 +214,14 @@ export const AuthModal: React.FC = () => {
 
     setIsSubmitting(true);
     try {
+      if (isDummyPhone(rawDigits)) {
+        setProfilePhone(formattedPhone);
+        setOtpStep('verify');
+        setOtpCode(DUMMY_OTP);
+        showToast('info', `Dummy Account: Enter OTP ${DUMMY_OTP} to log in.`, 'Dummy Login');
+        return;
+      }
+
       if (!isFirebaseConfigured) {
         setProfilePhone(formattedPhone);
         setOtpStep('verify');
@@ -238,6 +263,60 @@ export const AuthModal: React.FC = () => {
     const code = otpCode.trim();
     if (!code || code.length !== 6) {
       showToast('error', 'Please enter the 6-digit verification code', 'Code Required');
+      return;
+    }
+
+    const currentPhone = profilePhone || identifier;
+    if (isDummyPhone(currentPhone)) {
+      if (code !== DUMMY_OTP) {
+        setErrorMessage(`Invalid OTP code. Please enter dummy OTP: ${DUMMY_OTP}`);
+        showToast('error', `Invalid OTP. Enter ${DUMMY_OTP}`, 'Verification Failed');
+        return;
+      }
+
+      setIsSubmitting(true);
+      try {
+        const dummyUser = mapBackendUser({
+          id: 'dummy_6300286705',
+          userId: 6300286705,
+          name: profileName || 'Demo Enterprise User',
+          fullName: profileName || 'Demo Enterprise User',
+          email: profileEmail || 'demo.user@hinchmart.com',
+          phone: profilePhone || `+91${DUMMY_PHONE}`,
+          role: 'BUYER',
+          isProfileComplete: true,
+          companyName: profileCompany || 'HinchMart Infrastructure & Builders',
+          gstNumber: profileGstin || '36AAACH1234A1Z5',
+          gstin: profileGstin || '36AAACH1234A1Z5',
+          isGstVerified: true,
+          isApprovedBuyer: true,
+          creditLimit: 5000000,
+          availableCredit: 4500000,
+          creditDays: 45,
+          procurementStats: {
+            totalOrders: 12,
+            activeRfqs: 2,
+            wishlistItems: 5,
+            savedAddresses: 2,
+          },
+        });
+
+        const token = 'dummy_access_token_6300286705';
+        tokenStorage.setAccessToken(token);
+        tokenStorage.setUser(dummyUser);
+
+        useAuthStore.setState({
+          user: dummyUser,
+          accessToken: token,
+          isAuthenticated: true,
+          error: null,
+        });
+
+        showToast('success', `Welcome back, ${dummyUser.name}! (Dummy Login)`, 'Authentication Successful');
+        handleClose();
+      } finally {
+        setIsSubmitting(false);
+      }
       return;
     }
 
@@ -650,13 +729,18 @@ export const AuthModal: React.FC = () => {
                 </div>
               </div>
 
-              {/* If phone exists: Show verified hint */}
-              {phoneExistsHint === true && (
+              {/* If phone exists: Show verified hint or dummy notice */}
+              {isDummyPhone(identifier) ? (
+                <div className="p-2.5 bg-blue-50 rounded-xl border border-blue-200 text-[11px] text-blue-800 flex items-center gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <span>Dummy test login detected. Use OTP: <strong>{DUMMY_OTP}</strong></span>
+                </div>
+              ) : phoneExistsHint === true ? (
                 <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 text-[11px] text-emerald-800 flex items-center gap-2">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                   <span>Existing account detected. Sign in with OTP.</span>
                 </div>
-              )}
+              ) : null}
 
               {/* reCAPTCHA Mount Container */}
               <div id="recaptcha-container" className="my-1 empty:hidden flex justify-center" />
@@ -667,7 +751,7 @@ export const AuthModal: React.FC = () => {
                   disabled={isSubmitting}
                   className="flex-1 py-3.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-black text-xs shadow-lg shadow-brand-600/30 flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
                 >
-                  <span>{isSubmitting ? 'Sending Firebase OTP...' : 'Send 6-Digit OTP'}</span>
+                  <span>{isSubmitting ? 'Sending Firebase OTP...' : isDummyPhone(identifier) ? 'Continue with Dummy OTP' : 'Send 6-Digit OTP'}</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
                 <button
@@ -693,25 +777,35 @@ export const AuthModal: React.FC = () => {
             /* OTP Verification Step */
             <form onSubmit={handleVerifyOtp} className="space-y-4 text-xs">
               <div className={`p-3 rounded-xl border text-xs flex items-start gap-2 ${
-                isFirebaseConfigured
+                isDummyPhone(profilePhone || identifier)
+                  ? 'bg-blue-50 border-blue-200 text-blue-900'
+                  : isFirebaseConfigured
                   ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
                   : 'bg-amber-50 border-amber-200 text-amber-950'
               }`}>
                 <CheckCircle2 className={`w-4 h-4 shrink-0 mt-0.5 ${
-                  isFirebaseConfigured ? 'text-emerald-600' : 'text-amber-600'
+                  isDummyPhone(profilePhone || identifier)
+                    ? 'text-blue-600'
+                    : isFirebaseConfigured ? 'text-emerald-600' : 'text-amber-600'
                 }`} />
                 <div>
                   <div>
-                    {isFirebaseConfigured ? (
+                    {isDummyPhone(profilePhone || identifier) ? (
+                      <>Dummy Login Mode for <strong className="font-mono">{profilePhone || identifier}</strong></>
+                    ) : isFirebaseConfigured ? (
                       <>OTP SMS sent to <strong className="font-mono">{profilePhone || identifier}</strong></>
                     ) : (
                       <>Dev Mode: Test Code Pre-filled for <strong className="font-mono">{profilePhone || identifier}</strong></>
                     )}
                   </div>
                   <div className={`text-[11px] mt-0.5 ${
-                    isFirebaseConfigured ? 'text-emerald-700' : 'text-amber-800'
+                    isDummyPhone(profilePhone || identifier)
+                      ? 'text-blue-700'
+                      : isFirebaseConfigured ? 'text-emerald-700' : 'text-amber-800'
                   }`}>
-                    {isFirebaseConfigured
+                    {isDummyPhone(profilePhone || identifier)
+                      ? `Dummy test account detected. Enter test OTP ${DUMMY_OTP} and click "Verify OTP & Log In" below.`
+                      : isFirebaseConfigured
                       ? 'Enter the 6-digit SMS code received on your phone to verify.'
                       : 'No real SMS sent because Firebase API keys are not configured in .env. Use test code 123456 and click "Verify OTP & Log In" below.'}
                   </div>
@@ -734,7 +828,7 @@ export const AuthModal: React.FC = () => {
                     type="text"
                     maxLength={6}
                     required
-                    placeholder="e.g. 123456"
+                    placeholder={isDummyPhone(profilePhone || identifier) ? DUMMY_OTP : "e.g. 123456"}
                     value={otpCode}
                     onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
                     className="w-full pl-9 pr-4 py-3 bg-industrial-50 border border-industrial-300 rounded-xl text-sm font-mono font-bold tracking-widest text-industrial-950 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white"

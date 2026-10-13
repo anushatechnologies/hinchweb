@@ -473,4 +473,33 @@ describe('HinchMart Frontend Authentication Implementation Suite', () => {
     const shouldRetry = !configWithRetry._retry && !configWithRetry.url.includes('/auth/sync');
     expect(shouldRetry).toBe(false);
   });
+
+  // 21. Dummy phone & OTP login support (6300286705 / 901162)
+  it('21. validates dummy phone and dummy OTP constants and session initialization', async () => {
+    const { DUMMY_PHONE, DUMMY_OTP, isDummyPhone } = await import('../components/common/AuthModal');
+    expect(DUMMY_PHONE).toBe('6300286705');
+    expect(DUMMY_OTP).toBe('901162');
+    expect(isDummyPhone('6300286705')).toBe(true);
+    expect(isDummyPhone('+916300286705')).toBe(true);
+    expect(isDummyPhone('+91 6300286705')).toBe(true);
+    expect(isDummyPhone('9876543210')).toBe(false);
+
+    // Verify dummy token session in useAuthStore
+    const dummyUser = {
+      id: 'dummy_6300286705',
+      name: 'Demo Enterprise User',
+      email: 'demo.user@hinchmart.com',
+      phone: '+916300286705',
+      role: 'BUYER',
+      isProfileComplete: true,
+      companyName: 'HinchMart Infrastructure & Builders',
+    } as any;
+    tokenStorage.setAccessToken('dummy_access_token_6300286705');
+    tokenStorage.setUser(dummyUser);
+
+    await useAuthStore.getState().initAuth();
+    expect(useAuthStore.getState().isAuthenticated).toBe(true);
+    expect(useAuthStore.getState().user.name).toBe('Demo Enterprise User');
+  });
 });
+
